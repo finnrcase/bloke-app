@@ -5,12 +5,18 @@ import { Award, CheckCircle2, Lock, Trophy } from 'lucide-react-native';
 import { AppCard } from '@/components/AppCard';
 import { AppPressButton } from '@/components/AppPressButton';
 import { AppScreen } from '@/components/AppScreen';
-import { BadgePill } from '@/components/ui/BadgePill';
+import { BadgeCard } from '@/components/ui/BadgeCard';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { GradientCard } from '@/components/ui/GradientCard';
+import { HeroSection } from '@/components/ui/HeroSection';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { SectionHeader } from '@/components/ui/SectionHeader';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { usePreferences } from '@/context/PreferencesContext';
+import { useTheme } from '@/hooks/useTheme';
+import { demoProgress, demoUserBadges } from '@/lib/demoData';
 import { supabase } from '@/lib/supabase';
 import { Database } from '@/types/database';
 
@@ -64,7 +70,9 @@ function formatDate(value: string | null) {
 }
 
 export default function ProgressScreen() {
-  const { session } = useAuth();
+  const { isDemoMode, session } = useAuth();
+  const { t } = usePreferences();
+  const theme = useTheme();
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [state, setState] = useState<ProgressState>({
@@ -84,6 +92,16 @@ export default function ProgressScreen() {
   );
 
   const loadProgress = useCallback(async () => {
+    if (isDemoMode && session) {
+      setState({
+        badges: demoUserBadges,
+        progressRows: demoProgress,
+      });
+      setErrorMessage('');
+      setIsLoading(false);
+      return;
+    }
+
     if (!supabase || !session) {
       setIsLoading(false);
       return;
@@ -118,7 +136,7 @@ export default function ProgressScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [session]);
+  }, [isDemoMode, session]);
 
   useEffect(() => {
     loadProgress();
@@ -126,36 +144,38 @@ export default function ProgressScreen() {
 
   return (
     <AppScreen contentStyle={styles.screenContent}>
-      <View style={styles.header}>
-        <Text style={styles.heading}>Progress</Text>
-        <Text style={styles.subheading}>Clear signals. Steady work.</Text>
-      </View>
+      <HeroSection
+        eyebrow="Becoming visible"
+        icon={Trophy}
+        subtitle="Status here is earned through steady, honest work."
+        title={t('progress')}
+      />
 
       {isLoading ? (
         <AppCard>
           <View style={styles.loadingRow}>
-            <ActivityIndicator color={colors.black} />
-            <Text style={styles.loadingText}>Loading progress...</Text>
+            <ActivityIndicator color={theme.accent} />
+            <Text style={[styles.loadingText, { color: theme.textSecondary }]}>{t('loadingProgress')}</Text>
           </View>
         </AppCard>
       ) : null}
 
       {errorMessage ? (
         <AppCard>
-          <Text style={styles.error}>{errorMessage}</Text>
+          <Text style={[styles.error, { color: theme.error }]}>{errorMessage}</Text>
           <View style={styles.cardAction}>
-            <AppPressButton label="Try again" onPress={loadProgress} variant="secondary" />
+            <AppPressButton label={t('tryAgain')} onPress={loadProgress} variant="secondary" />
           </View>
         </AppCard>
       ) : null}
 
       {!isLoading && !errorMessage ? (
         <>
-          <AppCard tone="dark" style={styles.journeyCard}>
-            <Text style={styles.darkEyebrow}>Journey progress</Text>
-            <Text style={styles.darkTitle}>{completedRows.length} weeks complete</Text>
-            <ProgressBar label="Weeks 1-10" value={journeyProgress} />
-          </AppCard>
+          <GradientCard glow style={styles.journeyCard} variant="olive">
+            <Text style={[styles.darkEyebrow, { color: theme.accent }]}>Journey progress</Text>
+            <Text style={[styles.darkTitle, { color: theme.textInverse }]}>{completedRows.length} weeks complete</Text>
+            <ProgressBar label="Weeks 1-10" tone="inverse" value={journeyProgress} />
+          </GradientCard>
 
           <View style={styles.metricsGrid}>
             <Metric label="Current week" value={`${getCurrentWeek(state.progressRows)}`} />
@@ -164,10 +184,10 @@ export default function ProgressScreen() {
             <Metric label="Badges earned" value={`${state.badges.length}`} />
           </View>
 
-          <AppCard>
+          <GlassCard>
             <SectionHeader icon={Trophy} title="Latest submission" />
-            <Text style={styles.body}>{formatDate(latestSubmittedAt)}</Text>
-          </AppCard>
+            <Text style={[styles.body, { color: theme.textSecondary }]}>{formatDate(latestSubmittedAt)}</Text>
+          </GlassCard>
 
           {state.progressRows.length === 0 ? (
             <AppCard>
@@ -178,34 +198,37 @@ export default function ProgressScreen() {
               />
             </AppCard>
           ) : (
-            <AppCard>
+            <GlassCard>
               <SectionHeader icon={CheckCircle2} title="Milestone timeline" />
               <View style={styles.weekList}>
                 {state.progressRows.map((progress) => (
-                  <View key={progress.id} style={styles.weekRow}>
-                    <Text style={styles.weekTitle}>Week {progress.week_number}</Text>
-                    <Text style={styles.weekStatus}>
+                  <View
+                    key={progress.id}
+                    style={[styles.weekRow, { backgroundColor: theme.cardMuted, borderColor: theme.border }]}>
+                    <Text style={[styles.weekTitle, { color: theme.textPrimary }]}>Week {progress.week_number}</Text>
+                    <Text style={[styles.weekStatus, { color: theme.textSecondary }]}>
                       {isWeekComplete(progress) ? 'Complete' : 'In progress'}
                     </Text>
                   </View>
                 ))}
               </View>
-            </AppCard>
+            </GlassCard>
           )}
 
-          <AppCard>
+          <GlassCard>
             <SectionHeader icon={Award} title="Badges" subtitle="Earned badges stay bold. Locked badges stay quiet." />
             <View style={styles.badgeGrid}>
               {badgeLabels.map((label, index) => (
-                <BadgePill
+                <BadgeCard
                   key={label}
                   icon={index < state.badges.length ? Award : Lock}
-                  label={label}
+                  subtitle={index < state.badges.length ? 'Earned' : 'Locked'}
+                  title={label}
                   locked={index >= state.badges.length}
                 />
               ))}
             </View>
-          </AppCard>
+          </GlassCard>
         </>
       ) : null}
     </AppScreen>
@@ -213,10 +236,12 @@ export default function ProgressScreen() {
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
+  const theme = useTheme();
+
   return (
-    <View style={styles.metricCard}>
-      <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={styles.metricValue}>{value}</Text>
+    <View style={[styles.metricCard, { backgroundColor: theme.glass, borderColor: theme.border }]}>
+      <Text style={[styles.metricLabel, { color: theme.textMuted }]}>{label}</Text>
+      <Text style={[styles.metricValue, { color: theme.textPrimary }]}>{value}</Text>
     </View>
   );
 }
@@ -229,13 +254,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   heading: {
-    color: colors.text,
     fontSize: typography.hero,
     fontWeight: '900',
     lineHeight: 54,
   },
   subheading: {
-    color: colors.mutedText,
     fontSize: 18,
     fontWeight: '800',
   },
@@ -245,55 +268,50 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   loadingText: {
-    color: colors.mutedText,
     fontSize: 18,
     fontWeight: '700',
   },
   metricsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.md,
   },
   journeyCard: {
     gap: spacing.lg,
   },
   darkEyebrow: {
-    color: colors.gold,
     fontSize: 14,
     fontWeight: '900',
     textTransform: 'uppercase',
   },
   darkTitle: {
-    color: colors.inverseText,
     fontSize: 36,
     fontWeight: '900',
     lineHeight: 42,
   },
   metricCard: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     borderWidth: 1,
+    flex: 1,
     gap: spacing.sm,
+    minWidth: 150,
     padding: spacing.lg,
   },
   metricLabel: {
-    color: colors.mutedText,
     fontSize: 14,
     fontWeight: '800',
     textTransform: 'uppercase',
   },
   metricValue: {
-    color: colors.text,
     fontSize: 30,
     fontWeight: '900',
     lineHeight: 36,
   },
   sectionTitle: {
-    color: colors.text,
     fontSize: 26,
     fontWeight: '900',
   },
   body: {
-    color: colors.mutedText,
     fontSize: 19,
     lineHeight: 29,
     marginTop: spacing.md,
@@ -303,34 +321,29 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   weekRow: {
-    backgroundColor: colors.surfaceAlt,
-    borderColor: colors.border,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     borderWidth: 1,
     gap: spacing.xs,
     padding: spacing.md,
   },
   weekTitle: {
-    color: colors.text,
     fontSize: 19,
     fontWeight: '900',
   },
   weekStatus: {
-    color: colors.mutedText,
     fontSize: 16,
     fontWeight: '800',
   },
   badgeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
+    gap: spacing.md,
     marginTop: spacing.lg,
   },
   cardAction: {
     marginTop: spacing.xl,
   },
   error: {
-    color: colors.text,
     fontSize: 17,
     fontWeight: '700',
     lineHeight: 24,

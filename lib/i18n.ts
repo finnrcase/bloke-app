@@ -1,0 +1,88 @@
+export type LanguageCode = 'en' | 'es';
+
+export const translations = {
+  en: {
+    dashboard: 'Dashboard',
+    food: 'Food',
+    goals: 'Goals & Targets',
+    recovery: 'Weight & Recovery',
+    training: 'Training',
+    history: 'Data & History',
+    settings: 'Integrations / Settings',
+    profile: 'Profile',
+    language: 'Language',
+    english: 'English',
+    spanish: 'Spanish',
+    appearance: 'Appearance',
+    dark: 'Dark',
+    light: 'Light',
+    system: 'System',
+    save: 'Save',
+    home: 'Home',
+    curriculum: 'Curriculum',
+    progress: 'Progress',
+    community: 'Community',
+    facilitator: 'Facilitator',
+    chapterDirectory: 'Chapter Directory',
+    preferences: 'Preferences',
+    signedInAs: 'Signed in as',
+    logout: 'Log out',
+    loggingOut: 'Logging out...',
+    saving: 'Saving...',
+    saved: 'Saved.',
+    preferencesIntro: 'Set the app language and visual mode for your account.',
+    personalDetails: 'Personal details and program settings.',
+    accountSettingsIntro: 'Profile, preferences, cohort membership, and account settings live here.',
+    tryAgain: 'Try again',
+    loadingProgress: 'Loading progress...',
+    loadingWeek: 'Loading your week...',
+    submit: 'Submit',
+  },
+  es: {
+    dashboard: 'Panel',
+    food: 'Comida',
+    goals: 'Metas y Objetivos',
+    recovery: 'Peso y Recuperación',
+    training: 'Entrenamiento',
+    history: 'Datos e Historial',
+    settings: 'Integraciones / Ajustes',
+    profile: 'Perfil',
+    language: 'Idioma',
+    english: 'Inglés',
+    spanish: 'Español',
+    appearance: 'Apariencia',
+    dark: 'Oscuro',
+    light: 'Claro',
+    system: 'Sistema',
+    save: 'Guardar',
+    home: 'Inicio',
+    curriculum: 'Currículo',
+    progress: 'Progreso',
+    community: 'Comunidad',
+    facilitator: 'Facilitador',
+    chapterDirectory: 'Directorio de Capítulos',
+    preferences: 'Preferencias',
+    signedInAs: 'Sesión iniciada como',
+    logout: 'Cerrar sesión',
+    loggingOut: 'Cerrando sesión...',
+    saving: 'Guardando...',
+    saved: 'Guardado.',
+    preferencesIntro: 'Configura el idioma y el modo visual de tu cuenta.',
+    personalDetails: 'Detalles personales y ajustes del programa.',
+    accountSettingsIntro: 'Perfil, preferencias, capítulo y ajustes de cuenta viven aquí.',
+    tryAgain: 'Intentar de nuevo',
+    loadingProgress: 'Cargando progreso...',
+    loadingWeek: 'Cargando tu semana...',
+    submit: 'Enviar',
+  },
+} as const;
+
+export type TranslationKey = keyof typeof translations.en;
+
+export function getTranslation(language: LanguageCode, key: TranslationKey) {
+  return translations[language]?.[key] ?? translations.en[key] ?? key;
+}
+
+export function normalizeLanguage(value?: string | null): LanguageCode {
+  return value?.toLowerCase() === 'es' ? 'es' : 'en';
+}

@@ -1,7 +1,8 @@
 import { ComponentType } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { borderRadius, colors, spacing } from '@/constants/theme';
+import { borderRadius, spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 type IconComponent = ComponentType<{ color?: string; size?: number; strokeWidth?: number }>;
 
@@ -12,12 +13,20 @@ type BadgePillProps = {
 };
 
 export function BadgePill({ icon: Icon, label, locked }: BadgePillProps) {
-  const color = locked ? colors.disabled : colors.text;
+  const theme = useTheme();
+  const color = locked ? theme.disabled : theme.textPrimary;
 
   return (
-    <View style={[styles.pill, locked ? styles.locked : styles.earned]}>
+    <View
+      style={[
+        styles.pill,
+        {
+          backgroundColor: locked ? theme.cardMuted : theme.accentSurface,
+          borderColor: locked ? theme.border : theme.accentBorder,
+        },
+      ]}>
       {Icon ? <Icon color={color} size={16} strokeWidth={2.4} /> : null}
-      <Text style={[styles.label, locked ? styles.lockedText : styles.earnedText]}>{label}</Text>
+      <Text style={[styles.label, { color }]}>{label}</Text>
     </View>
   );
 }
@@ -33,22 +42,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
-  earned: {
-    backgroundColor: colors.accentSurface,
-    borderColor: colors.accentBorder,
-  },
-  locked: {
-    backgroundColor: colors.surfaceAlt,
-    borderColor: colors.border,
-  },
   label: {
     fontSize: 14,
     fontWeight: '900',
-  },
-  earnedText: {
-    color: colors.text,
-  },
-  lockedText: {
-    color: colors.disabled,
   },
 });

@@ -5,8 +5,9 @@ import { StyleSheet, Text } from 'react-native';
 import { AppCard } from '@/components/AppCard';
 import { AppScreen } from '@/components/AppScreen';
 import { LoadingScreen } from '@/components/LoadingScreen';
-import { colors, spacing } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/hooks/useTheme';
 
 type RouteGuardProps = PropsWithChildren<{
   mode: 'public' | 'onboarding' | 'protected';
@@ -14,6 +15,7 @@ type RouteGuardProps = PropsWithChildren<{
 
 export function RouteGuard({ children, mode }: RouteGuardProps) {
   const { authError, isLoading, isProfileComplete, session } = useAuth();
+  const theme = useTheme();
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -23,10 +25,10 @@ export function RouteGuard({ children, mode }: RouteGuardProps) {
     return (
       <AppScreen>
         <AppCard>
-          <Text style={styles.errorTitle}>
+          <Text style={[styles.errorTitle, { color: theme.textPrimary }]}>
             Could not check your profile.
           </Text>
-          <Text style={styles.errorBody}>{authError}</Text>
+          <Text style={[styles.errorBody, { color: theme.textSecondary }]}>{authError}</Text>
         </AppCard>
       </AppScreen>
     );
@@ -69,14 +71,12 @@ export function RouteGuard({ children, mode }: RouteGuardProps) {
 
 const styles = StyleSheet.create({
   errorTitle: {
-    color: colors.text,
     fontSize: 24,
     fontWeight: '900',
     lineHeight: 31,
     marginBottom: spacing.md,
   },
   errorBody: {
-    color: colors.mutedText,
     fontSize: 18,
     lineHeight: 28,
   },

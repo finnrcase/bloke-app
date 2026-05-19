@@ -1,7 +1,8 @@
 import { PropsWithChildren } from 'react';
 import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 
-import { borderRadius, colors, shadows, spacing } from '@/constants/theme';
+import { borderRadius, shadows, spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 type AppCardProps = PropsWithChildren<{
   elevated?: boolean;
@@ -11,14 +12,20 @@ type AppCardProps = PropsWithChildren<{
 }>;
 
 export function AppCard({ children, elevated = true, muted, style, tone = 'light' }: AppCardProps) {
+  const theme = useTheme();
+  const toneStyle =
+    tone === 'dark'
+      ? { backgroundColor: theme.cardInverted, borderColor: theme.cardInverted }
+      : tone === 'accent'
+        ? { backgroundColor: theme.accentSurface, borderColor: theme.accentBorder }
+        : { backgroundColor: muted ? theme.cardMuted : theme.card, borderColor: theme.border };
+
   return (
     <View
       style={[
         styles.card,
+        toneStyle,
         elevated ? shadows.card : null,
-        muted ? styles.muted : null,
-        tone === 'dark' ? styles.dark : null,
-        tone === 'accent' ? styles.accent : null,
         style,
       ]}>
       {children}
@@ -28,21 +35,8 @@ export function AppCard({ children, elevated = true, muted, style, tone = 'light
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.xl,
     borderWidth: 1,
-    padding: spacing.lg,
-  },
-  muted: {
-    backgroundColor: colors.surfaceAlt,
-  },
-  dark: {
-    backgroundColor: colors.surfaceDark,
-    borderColor: colors.surfaceDark,
-  },
-  accent: {
-    backgroundColor: colors.accentSurface,
-    borderColor: colors.accentBorder,
+    padding: spacing.xl,
   },
 });

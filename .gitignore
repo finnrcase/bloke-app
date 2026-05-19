@@ -1,43 +1,79 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+# Learn more:
+# https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# Dependencies
 node_modules/
+.pnp
+.pnp.js
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
 
 # Expo
 .expo/
+.expo-shared/
 dist/
 web-build/
 expo-env.d.ts
+*.expo.ts
 
-# Native
+# React Native / native build output
+android/
+ios/
 .kotlin/
 *.orig.*
+
+# Signing credentials and provisioning files
 *.jks
 *.p8
 *.p12
 *.key
 *.mobileprovision
+*.keystore
 
 # Metro
 .metro-health-check*
 
-# debug
+# Logs and debug output
+logs/
+*.log
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+pnpm-debug.log*
 
 # macOS
 .DS_Store
+._*
+
+# Certificates
 *.pem
 
-# local env files
+# Local environment files
 .env
+.env.*
 .env*.local
 !.env.example
 
-# typescript
+# TypeScript
 *.tsbuildinfo
 
-# generated native folders
-/ios
-/android
+# Build artifacts and coverage
+build/
+coverage/
+.nyc_output/
+
+# Vercel / deployment output
+.vercel/
+
+# Local editor and tooling noise
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Local nested-repo artifact; do not commit a second Git repository.
+/Bloke/

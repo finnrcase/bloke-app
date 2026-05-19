@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "bloke-app",
+    "name": "Bloke",
     "slug": "bloke-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -14,6 +14,7 @@
       "backgroundColor": "#F4F1EC"
     },
     "ios": {
+      "bundleIdentifier": "org.bloke.app",
       "supportsTablet": true
     },
     "android": {
@@ -22,17 +23,22 @@
         "backgroundColor": "#F4F1EC"
       },
       "edgeToEdgeEnabled": true,
+      "package": "org.bloke.app",
+      "permissions": [],
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       "expo-router",
       "expo-secure-store"
     ],
+    "extra": {
+      "privacyPolicyUrl": "https://example.com/privacy"
+    },
     "experiments": {
       "typedRoutes": true
     }

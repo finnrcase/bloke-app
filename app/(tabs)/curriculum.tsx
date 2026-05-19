@@ -6,9 +6,17 @@ import { AppCard } from '@/components/AppCard';
 import { AppPressButton } from '@/components/AppPressButton';
 import { AppScreen } from '@/components/AppScreen';
 import { FormTextInput } from '@/components/FormTextInput';
+import { FloatingCTA } from '@/components/ui/FloatingCTA';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { GradientCard } from '@/components/ui/GradientCard';
+import { HeroSection } from '@/components/ui/HeroSection';
+import { ProgressBar } from '@/components/ui/ProgressBar';
 import { SectionHeader } from '@/components/ui/SectionHeader';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { usePreferences } from '@/context/PreferencesContext';
+import { useTheme } from '@/hooks/useTheme';
+import { demoCurriculumWeeks, demoProgress, demoUserId } from '@/lib/demoData';
 import { supabase } from '@/lib/supabase';
 import { Database, Json } from '@/types/database';
 
@@ -42,7 +50,9 @@ function buildAnswers(prompts: string[], answersByPrompt: Record<string, string>
 }
 
 export default function CurriculumScreen() {
-  const { session } = useAuth();
+  const { isDemoMode, session } = useAuth();
+  const { t } = usePreferences();
+  const theme = useTheme();
   const [answersByPrompt, setAnswersByPrompt] = useState<Record<string, string>>({});
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -58,6 +68,25 @@ export default function CurriculumScreen() {
   const prompts = useMemo(() => getPrompts(state.currentWeek?.log_prompts ?? null), [state.currentWeek]);
 
   const loadCurriculum = useCallback(async () => {
+    if (isDemoMode && session) {
+      const progressByWeek = new Map(demoProgress.map((progress) => [progress.week_number, progress]));
+      const currentWeek =
+        demoCurriculumWeeks.find((week) => !isWeekComplete(progressByWeek.get(week.week_number))) ??
+        demoCurriculumWeeks[0] ??
+        null;
+
+      setAnswersByPrompt({});
+      setState({
+        currentProgress: currentWeek ? progressByWeek.get(currentWeek.week_number) ?? null : null,
+        currentWeek,
+        progressRows: demoProgress,
+        weeks: demoCurriculumWeeks,
+      });
+      setErrorMessage('');
+      setIsLoading(false);
+      return;
+    }
+
     if (!supabase || !session) {
       setIsLoading(false);
       return;
@@ -98,13 +127,43 @@ export default function CurriculumScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [session]);
+  }, [isDemoMode, session]);
 
   useEffect(() => {
     loadCurriculum();
   }, [loadCurriculum]);
 
   async function saveProgress(update: Partial<WeeklyProgress>) {
+    if (isDemoMode && session && state.currentWeek) {
+      setErrorMessage('');
+      setSavedMessage('');
+      setIsSaving(true);
+
+      const nextProgress: WeeklyProgress = {
+        act_complete: state.currentProgress?.act_complete ?? false,
+        created_at: state.currentProgress?.created_at ?? new Date().toISOString(),
+        id: state.currentProgress?.id ?? `demo-progress-${state.currentWeek.week_number}`,
+        learn_complete: state.currentProgress?.learn_complete ?? false,
+        log_complete: state.currentProgress?.log_complete ?? false,
+        profile_id: demoUserId,
+        submitted_at: state.currentProgress?.submitted_at ?? null,
+        week_number: state.currentWeek.week_number,
+        ...update,
+      };
+
+      setState((current) => ({
+        ...current,
+        currentProgress: nextProgress,
+        progressRows: [
+          ...current.progressRows.filter((progress) => progress.week_number !== nextProgress.week_number),
+          nextProgress,
+        ].sort((a, b) => (a.week_number ?? 0) - (b.week_number ?? 0)),
+      }));
+      setSavedMessage('Saved in demo mode.');
+      setIsSaving(false);
+      return;
+    }
+
     if (!supabase || !session || !state.currentWeek) {
       return;
     }
@@ -148,6 +207,51 @@ export default function CurriculumScreen() {
   }
 
   async function handleSubmitWeek() {
+    if (isDemoMode && session && state.currentWeek) {
+      const answers = buildAnswers(prompts, answersByPrompt);
+      const hasEmptyAnswer = prompts.length === 0 || answers.some((answer) => !answer.answer);
+
+      if (hasEmptyAnswer) {
+        setErrorMessage('Answer every log prompt before submitting.');
+        return;
+      }
+
+      setErrorMessage('');
+      setSavedMessage('');
+      setIsSaving(true);
+
+      const completeProgress: WeeklyProgress = {
+        act_complete: true,
+        created_at: state.currentProgress?.created_at ?? new Date().toISOString(),
+        id: state.currentProgress?.id ?? `demo-progress-${state.currentWeek.week_number}`,
+        learn_complete: true,
+        log_complete: true,
+        profile_id: demoUserId,
+        submitted_at: new Date().toISOString(),
+        week_number: state.currentWeek.week_number,
+      };
+      const nextProgressRows = [
+        ...state.progressRows.filter((progress) => progress.week_number !== completeProgress.week_number),
+        completeProgress,
+      ].sort((a, b) => (a.week_number ?? 0) - (b.week_number ?? 0));
+      const progressByWeek = new Map(nextProgressRows.map((progress) => [progress.week_number, progress]));
+      const nextWeek =
+        state.weeks.find((week) => !isWeekComplete(progressByWeek.get(week.week_number))) ??
+        state.weeks[state.weeks.length - 1] ??
+        null;
+
+      setAnswersByPrompt({});
+      setState({
+        currentProgress: nextWeek ? progressByWeek.get(nextWeek.week_number) ?? null : null,
+        currentWeek: nextWeek,
+        progressRows: nextProgressRows,
+        weeks: state.weeks,
+      });
+      setSavedMessage('Week submitted in demo mode.');
+      setIsSaving(false);
+      return;
+    }
+
     if (!supabase || !session || !state.currentWeek) {
       return;
     }
@@ -230,40 +334,54 @@ export default function CurriculumScreen() {
 
   return (
     <AppScreen contentStyle={styles.screenContent}>
-      <View style={styles.header}>
-        <Text style={styles.heading}>Curriculum</Text>
-        <Text style={styles.subheading}>Learn. Act. Log.</Text>
-      </View>
+      <HeroSection
+        eyebrow="Focused work"
+        icon={BookOpen}
+        subtitle="One week. One standard. One proof point."
+        title={t('curriculum')}
+      />
 
       {isLoading ? (
         <AppCard>
           <View style={styles.loadingRow}>
-            <ActivityIndicator color={colors.black} />
-            <Text style={styles.loadingText}>Loading curriculum...</Text>
+            <ActivityIndicator color={theme.accent} />
+            <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading curriculum...</Text>
           </View>
         </AppCard>
       ) : null}
 
       {errorMessage ? (
         <AppCard>
-          <Text style={styles.error}>{errorMessage}</Text>
+          <Text style={[styles.error, { color: theme.error }]}>{errorMessage}</Text>
           <View style={styles.cardAction}>
-            <AppPressButton label="Try again" onPress={loadCurriculum} variant="secondary" />
+            <AppPressButton label={t('tryAgain')} onPress={loadCurriculum} variant="secondary" />
           </View>
         </AppCard>
       ) : null}
 
       {!isLoading && currentWeek ? (
         <>
-          <AppCard tone="accent">
-            <Text style={styles.eyebrow}>Week {currentWeek.week_number}</Text>
-            <Text style={styles.title}>{currentWeek.title}</Text>
-            <Text style={styles.identity}>{currentWeek.identity_statement}</Text>
-          </AppCard>
+          <GradientCard glow variant="dark">
+            <View style={styles.weekHeroTop}>
+              <Text style={[styles.darkEyebrow, { color: theme.accent }]}>Week {currentWeek.week_number}</Text>
+              <Text style={[styles.darkEyebrow, { color: theme.accent }]}>
+                {[currentProgress?.learn_complete, currentProgress?.act_complete, currentProgress?.log_complete].filter(Boolean).length} / 3
+              </Text>
+            </View>
+            <Text style={[styles.darkTitle, { color: theme.textInverse }]}>{currentWeek.title}</Text>
+            <Text style={[styles.identity, { color: theme.textInverse }]}>{currentWeek.identity_statement}</Text>
+            <ProgressBar
+              tone="inverse"
+              value={
+                [currentProgress?.learn_complete, currentProgress?.act_complete, currentProgress?.log_complete].filter(Boolean).length /
+                3
+              }
+            />
+          </GradientCard>
 
-          <AppCard>
+          <GlassCard>
             <StepHeader complete={currentProgress?.learn_complete} icon={BookOpen} label="Learn" />
-            <Text style={styles.sectionText}>{currentWeek.learn_text}</Text>
+            <Text style={[styles.sectionText, { color: theme.textSecondary }]}>{currentWeek.learn_text}</Text>
             <View style={styles.cardAction}>
               <AppPressButton
                 disabled={isSaving || currentProgress?.learn_complete === true}
@@ -273,11 +391,11 @@ export default function CurriculumScreen() {
                 variant={currentProgress?.learn_complete ? 'secondary' : 'primary'}
               />
             </View>
-          </AppCard>
+          </GlassCard>
 
-          <AppCard>
+          <GlassCard>
             <StepHeader complete={currentProgress?.act_complete} icon={Dumbbell} label="Act" />
-            <Text style={styles.sectionText}>{currentWeek.act_text}</Text>
+            <Text style={[styles.sectionText, { color: theme.textSecondary }]}>{currentWeek.act_text}</Text>
             <View style={styles.cardAction}>
               <AppPressButton
                 disabled={isSaving || currentProgress?.act_complete === true}
@@ -287,9 +405,9 @@ export default function CurriculumScreen() {
                 variant={currentProgress?.act_complete ? 'secondary' : 'primary'}
               />
             </View>
-          </AppCard>
+          </GlassCard>
 
-          <AppCard>
+          <GlassCard>
             <StepHeader complete={currentProgress?.log_complete} icon={ClipboardList} label="Log" />
             <View style={styles.prompts}>
               {prompts.map((prompt, index) => (
@@ -307,12 +425,12 @@ export default function CurriculumScreen() {
                 />
               ))}
             </View>
-          </AppCard>
+          </GlassCard>
 
-          {savedMessage ? <Text style={styles.saved}>{savedMessage}</Text> : null}
+          {savedMessage ? <Text style={[styles.saved, { color: theme.success }]}>{savedMessage}</Text> : null}
 
           {canSubmit ? (
-            <AppPressButton
+            <FloatingCTA
               disabled={isSaving}
               icon={Send}
               label={isSaving ? 'Saving...' : 'Submit Week'}
@@ -320,7 +438,9 @@ export default function CurriculumScreen() {
             />
           ) : (
             <AppCard muted>
-              <Text style={styles.body}>Complete Learn, complete Act, and answer every Log prompt to submit.</Text>
+              <Text style={[styles.body, { color: theme.textSecondary }]}>
+                Complete Learn, complete Act, and answer every Log prompt to submit.
+              </Text>
             </AppCard>
           )}
         </>
@@ -328,8 +448,8 @@ export default function CurriculumScreen() {
 
       {!isLoading && !currentWeek && !errorMessage ? (
         <AppCard>
-          <Text style={styles.title}>No week found.</Text>
-          <Text style={styles.sectionText}>Seed the curriculum to begin.</Text>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>No week found.</Text>
+          <Text style={[styles.sectionText, { color: theme.textSecondary }]}>Seed the curriculum to begin.</Text>
         </AppCard>
       ) : null}
     </AppScreen>
@@ -345,11 +465,20 @@ function StepHeader({
   icon: Parameters<typeof SectionHeader>[0]['icon'];
   label: string;
 }) {
+  const theme = useTheme();
+
   return (
     <View style={styles.sectionHeader}>
       <SectionHeader icon={icon} title={label} />
-      <View style={[styles.statusPill, complete ? styles.completePill : styles.openPill]}>
-        <Text style={[styles.statusText, complete ? styles.completeText : styles.openText]}>
+      <View
+        style={[
+          styles.statusPill,
+          {
+            backgroundColor: complete ? theme.successSurface : theme.cardMuted,
+            borderColor: complete ? theme.successBorder : theme.border,
+          },
+        ]}>
+        <Text style={[styles.statusText, { color: complete ? theme.success : theme.textPrimary }]}>
           {complete ? 'Saved' : 'Open'}
         </Text>
       </View>
@@ -365,13 +494,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   heading: {
-    color: colors.text,
     fontSize: typography.hero,
     fontWeight: '900',
     lineHeight: 54,
   },
   subheading: {
-    color: colors.mutedText,
     fontSize: 18,
     fontWeight: '800',
   },
@@ -381,39 +508,45 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   loadingText: {
-    color: colors.mutedText,
     fontSize: 18,
     fontWeight: '700',
   },
   eyebrow: {
-    color: colors.gold,
     fontSize: 15,
     fontWeight: '800',
     marginBottom: spacing.sm,
     textTransform: 'uppercase',
   },
   title: {
-    color: colors.text,
     fontSize: 36,
     fontWeight: '900',
     lineHeight: 42,
   },
   identity: {
-    color: colors.text,
-    fontSize: 26,
+    fontSize: 30,
     fontWeight: '900',
-    lineHeight: 32,
+    lineHeight: 37,
     marginTop: spacing.md,
+  },
+  darkEyebrow: {
+    fontSize: 14,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  darkTitle: {
+    fontSize: 42,
+    fontWeight: '900',
+    lineHeight: 48,
+  },
+  weekHeroTop: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   sectionHeader: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-  },
-  sectionTitle: {
-    color: colors.text,
-    fontSize: 28,
-    fontWeight: '900',
   },
   statusPill: {
     borderRadius: radius.md,
@@ -421,32 +554,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
-  completePill: {
-    backgroundColor: colors.successSurface,
-    borderColor: colors.successBorder,
-  },
-  openPill: {
-    backgroundColor: colors.surfaceAlt,
-    borderColor: colors.border,
-  },
   statusText: {
     fontSize: 14,
     fontWeight: '900',
   },
-  completeText: {
-    color: colors.success,
-  },
-  openText: {
-    color: colors.text,
-  },
   sectionText: {
-    color: colors.mutedText,
     fontSize: 20,
     lineHeight: 31,
     marginTop: spacing.lg,
   },
   body: {
-    color: colors.mutedText,
     fontSize: 18,
     lineHeight: 28,
   },
@@ -461,13 +578,11 @@ const styles = StyleSheet.create({
     minHeight: 120,
   },
   error: {
-    color: colors.text,
     fontSize: 17,
     fontWeight: '700',
     lineHeight: 24,
   },
   saved: {
-    color: colors.success,
     fontSize: 17,
     fontWeight: '900',
     textAlign: 'center',

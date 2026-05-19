@@ -10,6 +10,7 @@ export type Database = {
           created_at: string | null;
           full_name: string | null;
           id: string;
+          appearance: 'dark' | 'light' | 'system' | null;
           language: string | null;
           onboarding_complete: boolean | null;
           personal_goal: string | null;
@@ -21,6 +22,7 @@ export type Database = {
           created_at?: string | null;
           full_name?: string | null;
           id: string;
+          appearance?: 'dark' | 'light' | 'system' | null;
           language?: string | null;
           onboarding_complete?: boolean | null;
           personal_goal?: string | null;
@@ -32,6 +34,7 @@ export type Database = {
           created_at?: string | null;
           full_name?: string | null;
           id?: string;
+          appearance?: 'dark' | 'light' | 'system' | null;
           language?: string | null;
           onboarding_complete?: boolean | null;
           personal_goal?: string | null;
@@ -139,7 +142,15 @@ export type Database = {
           facilitator_id: string | null;
           id: string;
           invite_code: string;
+          latitude: number | null;
+          longitude: number | null;
+          description: string | null;
+          is_public: boolean | null;
+          join_policy: 'invite_code' | 'request' | 'open' | null;
+          meeting_day: string | null;
+          meeting_location: string | null;
           name: string;
+          public_join_enabled: boolean | null;
           region: string | null;
         };
         Insert: {
@@ -148,7 +159,15 @@ export type Database = {
           facilitator_id?: string | null;
           id?: string;
           invite_code: string;
+          latitude?: number | null;
+          longitude?: number | null;
+          description?: string | null;
+          is_public?: boolean | null;
+          join_policy?: 'invite_code' | 'request' | 'open' | null;
+          meeting_day?: string | null;
+          meeting_location?: string | null;
           name: string;
+          public_join_enabled?: boolean | null;
           region?: string | null;
         };
         Update: {
@@ -157,7 +176,15 @@ export type Database = {
           facilitator_id?: string | null;
           id?: string;
           invite_code?: string;
+          latitude?: number | null;
+          longitude?: number | null;
+          description?: string | null;
+          is_public?: boolean | null;
+          join_policy?: 'invite_code' | 'request' | 'open' | null;
+          meeting_day?: string | null;
+          meeting_location?: string | null;
           name?: string;
+          public_join_enabled?: boolean | null;
           region?: string | null;
         };
         Relationships: [];
@@ -189,6 +216,90 @@ export type Database = {
           id?: string;
           post_type?: 'announcement' | 'weekly_prompt' | 'win' | null;
           title?: string | null;
+        };
+        Relationships: [];
+      };
+      chapter_prompt_responses: {
+        Row: {
+          author_id: string;
+          body: string;
+          chapter_id: string;
+          created_at: string | null;
+          id: string;
+          prompt_post_id: string;
+        };
+        Insert: {
+          author_id: string;
+          body: string;
+          chapter_id: string;
+          created_at?: string | null;
+          id?: string;
+          prompt_post_id: string;
+        };
+        Update: {
+          author_id?: string;
+          body?: string;
+          chapter_id?: string;
+          created_at?: string | null;
+          id?: string;
+          prompt_post_id?: string;
+        };
+        Relationships: [];
+      };
+      chapter_post_reactions: {
+        Row: {
+          created_at: string | null;
+          id: string;
+          post_id: string;
+          profile_id: string;
+          reaction_type: 'respect';
+        };
+        Insert: {
+          created_at?: string | null;
+          id?: string;
+          post_id: string;
+          profile_id: string;
+          reaction_type?: 'respect';
+        };
+        Update: {
+          created_at?: string | null;
+          id?: string;
+          post_id?: string;
+          profile_id?: string;
+          reaction_type?: 'respect';
+        };
+        Relationships: [];
+      };
+      chapter_join_requests: {
+        Row: {
+          chapter_id: string;
+          created_at: string | null;
+          id: string;
+          message: string | null;
+          profile_id: string;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+          status: 'pending' | 'approved' | 'rejected';
+        };
+        Insert: {
+          chapter_id: string;
+          created_at?: string | null;
+          id?: string;
+          message?: string | null;
+          profile_id: string;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          status?: 'pending' | 'approved' | 'rejected';
+        };
+        Update: {
+          chapter_id?: string;
+          created_at?: string | null;
+          id?: string;
+          message?: string | null;
+          profile_id?: string;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          status?: 'pending' | 'approved' | 'rejected';
         };
         Relationships: [];
       };
@@ -302,6 +413,46 @@ export type Database = {
           target_chapter_id: string;
         };
         Returns: number;
+      };
+      get_public_chapter_directory: {
+        Args: {
+          search_text?: string | null;
+        };
+        Returns: {
+          country: string | null;
+          description: string | null;
+          id: string;
+          is_public: boolean | null;
+          join_policy: 'invite_code' | 'request' | 'open' | null;
+          latitude: number | null;
+          longitude: number | null;
+          meeting_day: string | null;
+          meeting_location: string | null;
+          member_count: number;
+          name: string;
+          public_join_enabled: boolean | null;
+          region: string | null;
+        }[];
+      };
+      join_public_chapter: {
+        Args: {
+          target_chapter_id: string;
+        };
+        Returns: string;
+      };
+      request_chapter_join: {
+        Args: {
+          target_chapter_id: string;
+          request_message?: string | null;
+        };
+        Returns: string;
+      };
+      review_chapter_join_request: {
+        Args: {
+          target_request_id: string;
+          next_status: 'approved' | 'rejected';
+        };
+        Returns: string;
       };
     };
     Enums: Record<string, never>;

@@ -1,16 +1,29 @@
 import { router } from 'expo-router';
-import { ComponentType } from 'react';
-import { Award, Flame, Handshake, Target, TrendingUp } from 'lucide-react-native';
+import { Award, Flame, Handshake, ShieldCheck, Target, TrendingUp } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { AppCard } from '@/components/AppCard';
 import { AppPressButton } from '@/components/AppPressButton';
 import { AppScreen } from '@/components/AppScreen';
+import { FloatingCTA } from '@/components/ui/FloatingCTA';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { GradientCard } from '@/components/ui/GradientCard';
+import { HeroSection } from '@/components/ui/HeroSection';
+import { MilestoneCard } from '@/components/ui/MilestoneCard';
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import { SectionHeader } from '@/components/ui/SectionHeader';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { ProgressRing } from '@/components/ui/ProgressRing';
+import { StreakCard } from '@/components/ui/StreakCard';
+import { radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { usePreferences } from '@/context/PreferencesContext';
+import { useTheme } from '@/hooks/useTheme';
+import {
+  demoAttendance,
+  demoCurriculumWeeks,
+  demoProgress,
+  demoProfile,
+} from '@/lib/demoData';
 import { supabase } from '@/lib/supabase';
 import { Database } from '@/types/database';
 
@@ -76,7 +89,9 @@ function computeChapterStreak(attendanceRows: Attendance[]) {
 }
 
 export default function HomeScreen() {
-  const { profile: cachedProfile, session } = useAuth();
+  const { isDemoMode, profile: cachedProfile, session } = useAuth();
+  const { t } = usePreferences();
+  const theme = useTheme();
   const [errorMessage, setErrorMessage] = useState('');
   const [homeState, setHomeState] = useState<HomeState>({
     chapterStreak: null,
@@ -88,6 +103,25 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(true);
 
   const loadHome = useCallback(async () => {
+    if (isDemoMode && session) {
+      const progressByWeek = new Map(demoProgress.map((progress) => [progress.week_number, progress]));
+      const currentWeek =
+        demoCurriculumWeeks.find((week) => !isWeekComplete(progressByWeek.get(week.week_number))) ??
+        demoCurriculumWeeks[0] ??
+        null;
+
+      setHomeState({
+        chapterStreak: computeChapterStreak(demoAttendance),
+        currentProgress: currentWeek ? progressByWeek.get(currentWeek.week_number) ?? null : null,
+        currentWeek,
+        profile: cachedProfile ?? demoProfile,
+        weeklyStreak: computeWeeklyStreak(demoProgress),
+      });
+      setErrorMessage('');
+      setIsLoading(false);
+      return;
+    }
+
     if (!supabase || !session) {
       setIsLoading(false);
       return;
@@ -147,7 +181,7 @@ export default function HomeScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [cachedProfile, session]);
+  }, [cachedProfile, isDemoMode, session]);
 
   useEffect(() => {
     loadHome();
@@ -164,100 +198,100 @@ export default function HomeScreen() {
 
   return (
     <AppScreen contentStyle={styles.screenContent}>
-      <View style={styles.header}>
-        <Text style={styles.greeting}>Hello, {firstName}.</Text>
-        <Text style={styles.subheading}>Keep moving. Keep it simple.</Text>
-      </View>
+      <HeroSection
+        eyebrow="Today's standard"
+        icon={ShieldCheck}
+        subtitle="Every small promise kept becomes proof."
+        title={`Rise, ${firstName}.`}
+      />
 
       {isLoading ? (
         <AppCard>
           <View style={styles.loadingRow}>
-            <ActivityIndicator color={colors.black} />
-            <Text style={styles.loadingText}>Loading your week...</Text>
+            <ActivityIndicator color={theme.accent} />
+            <Text style={[styles.loadingText, { color: theme.textSecondary }]}>{t('loadingWeek')}</Text>
           </View>
         </AppCard>
       ) : null}
 
       {errorMessage ? (
         <AppCard>
-          <Text style={styles.error}>{errorMessage}</Text>
+          <Text style={[styles.error, { color: theme.error }]}>{errorMessage}</Text>
           <View style={styles.cardAction}>
-            <AppPressButton label="Try again" onPress={loadHome} variant="secondary" />
+            <AppPressButton label={t('tryAgain')} onPress={loadHome} variant="secondary" />
           </View>
         </AppCard>
       ) : null}
 
       {!isLoading && !errorMessage && currentWeek ? (
         <>
-          <AppCard tone="dark" style={styles.commandCard}>
-            <Text style={styles.darkEyebrow}>Week {currentWeek.week_number}</Text>
-            <Text style={styles.darkTitle}>{currentWeek.title}</Text>
-            <Text style={styles.identity}>{currentWeek.identity_statement}</Text>
-            <ProgressBar label={`${completedParts} of 3 complete`} value={completedParts / 3} />
-
-            <View style={styles.progressGrid}>
-              <CompletionPill complete={currentProgress?.learn_complete} label="Learn" />
-              <CompletionPill complete={currentProgress?.act_complete} label="Act" />
-              <CompletionPill complete={currentProgress?.log_complete} label="Log" />
+          <GradientCard glow style={styles.identityCard} variant="bronze">
+            <View style={styles.heroTopRow}>
+              <View style={styles.weekChip}>
+                <Text style={[styles.weekChipText, { color: theme.accent }]}>Week {currentWeek.week_number}</Text>
+              </View>
+              <ProgressRing label="Week" value={completedParts / 3} />
             </View>
-
-            <View style={styles.cardAction}>
-              <AppPressButton icon={Target} label="Continue Week" onPress={() => router.push('/curriculum')} />
+            <View>
+              <Text style={[styles.darkTitle, { color: theme.textInverse }]}>{currentWeek.title}</Text>
+              <Text style={[styles.identity, { color: theme.textInverse }]}>{currentWeek.identity_statement}</Text>
             </View>
-          </AppCard>
+            <View style={styles.stepRow}>
+              <CompletionDot complete={currentProgress?.learn_complete} label="Learn" />
+              <CompletionDot complete={currentProgress?.act_complete} label="Act" />
+              <CompletionDot complete={currentProgress?.log_complete} label="Log" />
+            </View>
+            <FloatingCTA icon={Target} label="Continue Week" onPress={() => router.push('/curriculum')} />
+          </GradientCard>
 
           <View style={styles.statsGrid}>
-            <MetricCard icon={Flame} label="Weekly streak" value={`${homeState.weeklyStreak}`} />
+            <StreakCard icon={Flame} label="Weekly streak" value={`${homeState.weeklyStreak}`} />
             {homeState.chapterStreak !== null ? (
-              <MetricCard icon={Handshake} label="Chapter streak" value={`${homeState.chapterStreak}`} />
+              <StreakCard icon={Handshake} label="Chapter streak" value={`${homeState.chapterStreak}`} />
             ) : null}
-            <MetricCard icon={Award} label="Next badge" value={currentWeek.milestone_name ?? 'Keep going'} />
           </View>
 
-          <AppCard tone="accent">
-            <SectionHeader icon={TrendingUp} title="This week's action" />
-            <Text style={styles.actionText}>{currentWeek.act_text}</Text>
-          </AppCard>
+          <MilestoneCard
+            label="Next milestone"
+            progress={Math.min((currentWeek.week_number - 1 + completedParts / 3) / 10, 1)}
+            title={currentWeek.milestone_name ?? 'Keep going'}
+          />
+
+          <GlassCard>
+            <View style={styles.actionHeader}>
+              <TrendingUp color={theme.accent} size={22} strokeWidth={2.7} />
+              <Text style={[styles.actionTitle, { color: theme.textPrimary }]}>This week's action</Text>
+            </View>
+            <Text style={[styles.actionText, { color: theme.textSecondary }]}>{currentWeek.act_text}</Text>
+          </GlassCard>
         </>
       ) : null}
 
       {!isLoading && !errorMessage && !currentWeek ? (
         <AppCard>
-          <Text style={styles.title}>No curriculum yet.</Text>
-          <Text style={styles.body}>Seed Weeks 1-10 to start the participant path.</Text>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>No curriculum yet.</Text>
+          <Text style={[styles.body, { color: theme.textSecondary }]}>Seed Weeks 1-10 to start the participant path.</Text>
         </AppCard>
       ) : null}
     </AppScreen>
   );
 }
 
-function CompletionPill({ complete, label }: { complete?: boolean | null; label: string }) {
-  return (
-    <View style={[styles.pill, complete ? styles.pillComplete : styles.pillPending]}>
-      <Text style={[styles.pillText, complete ? styles.pillTextComplete : styles.pillTextPending]}>
-        {label}
-      </Text>
-      <Text style={[styles.pillState, complete ? styles.pillTextComplete : styles.pillTextPending]}>
-        {complete ? 'Done' : 'Open'}
-      </Text>
-    </View>
-  );
-}
+function CompletionDot({ complete, label }: { complete?: boolean | null; label: string }) {
+  const theme = useTheme();
 
-function MetricCard({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: ComponentType<{ color?: string; size?: number; strokeWidth?: number }>;
-  label: string;
-  value: string;
-}) {
   return (
-    <View style={styles.metricCard}>
-      <Icon color={colors.gold} size={22} strokeWidth={2.5} />
-      <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={styles.metricValue}>{value}</Text>
+    <View style={styles.step}>
+      <View
+        style={[
+          styles.stepDot,
+          {
+            backgroundColor: complete ? theme.accent : 'rgba(255, 249, 239, 0.2)',
+            borderColor: complete ? theme.accent : 'rgba(255, 249, 239, 0.28)',
+          },
+        ]}
+      />
+      <Text style={[styles.stepText, { color: theme.textInverseMuted }]}>{label}</Text>
     </View>
   );
 }
@@ -266,141 +300,108 @@ const styles = StyleSheet.create({
   screenContent: {
     justifyContent: 'flex-start',
   },
-  header: {
-    gap: spacing.sm,
-  },
-  greeting: {
-    color: colors.text,
-    fontSize: typography.hero,
-    fontWeight: '900',
-    lineHeight: 54,
-  },
-  subheading: {
-    color: colors.mutedText,
-    fontSize: 18,
-    fontWeight: '700',
-  },
   loadingRow: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.md,
   },
   loadingText: {
-    color: colors.mutedText,
     fontSize: 18,
     fontWeight: '700',
   },
   eyebrow: {
-    color: colors.mutedText,
     fontSize: 15,
     fontWeight: '800',
     marginBottom: spacing.sm,
     textTransform: 'uppercase',
   },
   title: {
-    color: colors.text,
     fontSize: 36,
     fontWeight: '900',
     lineHeight: 42,
   },
   identity: {
-    color: colors.inverseText,
-    fontSize: 24,
+    fontSize: 30,
     fontWeight: '900',
-    lineHeight: 32,
-    marginTop: spacing.md,
+    lineHeight: 36,
+    marginTop: spacing.sm,
   },
-  commandCard: {
-    gap: spacing.lg,
+  identityCard: {
+    gap: spacing.xl,
   },
-  darkEyebrow: {
-    color: colors.gold,
+  heroTopRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  darkTitle: {
+    fontSize: 42,
+    fontWeight: '900',
+    lineHeight: 48,
+  },
+  weekChip: {
+    backgroundColor: 'rgba(255, 249, 239, 0.12)',
+    borderColor: 'rgba(255, 249, 239, 0.22)',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  weekChipText: {
     fontSize: 14,
     fontWeight: '900',
     textTransform: 'uppercase',
   },
-  darkTitle: {
-    color: colors.inverseText,
-    fontSize: 38,
-    fontWeight: '900',
-    lineHeight: 44,
-  },
-  progressGrid: {
-    gap: spacing.md,
-    marginTop: spacing.xl,
-  },
-  pill: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    borderWidth: 1,
+  stepRow: {
     flexDirection: 'row',
+    gap: spacing.md,
     justifyContent: 'space-between',
-    minHeight: 56,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
   },
-  pillComplete: {
-    backgroundColor: 'rgba(176, 138, 69, 0.18)',
-    borderColor: colors.gold,
+  step: {
+    alignItems: 'center',
+    flex: 1,
+    gap: spacing.sm,
   },
-  pillPending: {
-    backgroundColor: 'rgba(255, 252, 247, 0.08)',
-    borderColor: 'rgba(255, 252, 247, 0.24)',
+  stepDot: {
+    backgroundColor: 'rgba(255, 249, 239, 0.2)',
+    borderColor: 'rgba(255, 249, 239, 0.28)',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    height: 14,
+    width: '100%',
   },
-  pillText: {
-    fontSize: 17,
-    fontWeight: '900',
-  },
-  pillState: {
+  stepText: {
     fontSize: 15,
-    fontWeight: '800',
-  },
-  pillTextComplete: {
-    color: colors.inverseText,
-  },
-  pillTextPending: {
-    color: colors.inverseText,
+    fontWeight: '900',
   },
   cardAction: {
     marginTop: spacing.xl,
   },
   statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.md,
   },
-  metricCard: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    borderWidth: 1,
+  actionHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
     gap: spacing.sm,
-    padding: spacing.lg,
   },
-  metricLabel: {
-    color: colors.mutedText,
-    fontSize: 14,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
-  metricValue: {
-    color: colors.text,
-    fontSize: 28,
+  actionTitle: {
+    fontSize: 22,
     fontWeight: '900',
-    lineHeight: 34,
   },
   actionText: {
-    color: colors.mutedText,
     fontSize: 19,
     lineHeight: 29,
     marginTop: spacing.md,
   },
   body: {
-    color: colors.mutedText,
     fontSize: 18,
     lineHeight: 28,
     marginTop: spacing.md,
   },
   error: {
-    color: colors.text,
     fontSize: 17,
     fontWeight: '700',
     lineHeight: 24,

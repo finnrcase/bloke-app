@@ -8,10 +8,13 @@ import { AppCard } from '@/components/AppCard';
 import { AppPressButton } from '@/components/AppPressButton';
 import { AppScreen } from '@/components/AppScreen';
 import { FormTextInput } from '@/components/FormTextInput';
-import { colors, spacing, typography } from '@/constants/theme';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { spacing, typography } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { signUpWithEmail } from '@/lib/auth';
 
 export default function SignupScreen() {
+  const theme = useTheme();
   const [confirmPassword, setConfirmPassword] = useState('');
   const [email, setEmail] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -51,10 +54,12 @@ export default function SignupScreen() {
 
   return (
     <AppScreen>
-      <AppCard>
-        <Text style={styles.eyebrow}>JOIN BLOKE</Text>
-        <Text style={styles.title}>Create account</Text>
-        <Text style={styles.body}>Start with a simple account. Then set your path and first goal.</Text>
+      <GlassCard>
+        <Text style={[styles.eyebrow, { color: theme.accent }]}>JOIN BLOKE</Text>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>Create account</Text>
+        <Text style={[styles.body, { color: theme.textSecondary }]}>
+          Start with a simple account. Then set your path and first goal.
+        </Text>
 
         <View style={styles.form}>
           <FormTextInput
@@ -85,7 +90,7 @@ export default function SignupScreen() {
           />
         </View>
 
-        {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
+        {errorMessage ? <Text style={[styles.error, { color: theme.error }]}>{errorMessage}</Text> : null}
 
         <View style={styles.actions}>
           <AppPressButton
@@ -96,27 +101,24 @@ export default function SignupScreen() {
           />
           <AppButton href="/login" icon={LogIn} label="Log In" variant="secondary" />
         </View>
-      </AppCard>
+      </GlassCard>
     </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
   eyebrow: {
-    color: colors.gold,
     fontSize: typography.eyebrow,
     fontWeight: '900',
     marginBottom: spacing.sm,
     textTransform: 'uppercase',
   },
   title: {
-    color: colors.text,
     fontSize: typography.titleLarge,
     fontWeight: '900',
     lineHeight: 46,
   },
   body: {
-    color: colors.mutedText,
     fontSize: 18,
     lineHeight: 28,
     marginTop: spacing.sm,
@@ -126,7 +128,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
   },
   error: {
-    color: colors.text,
     fontSize: 16,
     fontWeight: '700',
     marginTop: spacing.lg,

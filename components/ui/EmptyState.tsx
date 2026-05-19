@@ -1,7 +1,8 @@
 import { ComponentType } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { borderRadius, colors, spacing } from '@/constants/theme';
+import { borderRadius, spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 type IconComponent = ComponentType<{ color?: string; size?: number; strokeWidth?: number }>;
 
@@ -12,15 +13,17 @@ type EmptyStateProps = {
 };
 
 export function EmptyState({ body, icon: Icon, title }: EmptyStateProps) {
+  const theme = useTheme();
+
   return (
     <View style={styles.wrap}>
       {Icon ? (
-        <View style={styles.iconWrap}>
-          <Icon color={colors.gold} size={24} strokeWidth={2.5} />
+        <View style={[styles.iconWrap, { backgroundColor: theme.accentSurface }]}>
+          <Icon color={theme.accent} size={24} strokeWidth={2.5} />
         </View>
       ) : null}
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.body}>{body}</Text>
+      <Text style={[styles.title, { color: theme.textPrimary }]}>{title}</Text>
+      <Text style={[styles.body, { color: theme.textSecondary }]}>{body}</Text>
     </View>
   );
 }
@@ -32,20 +35,17 @@ const styles = StyleSheet.create({
   },
   iconWrap: {
     alignItems: 'center',
-    backgroundColor: colors.accentSurface,
     borderRadius: borderRadius.md,
     height: 48,
     justifyContent: 'center',
     width: 48,
   },
   title: {
-    color: colors.text,
     fontSize: 24,
     fontWeight: '900',
     lineHeight: 30,
   },
   body: {
-    color: colors.mutedText,
     fontSize: 18,
     lineHeight: 28,
   },

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarCheck, Megaphone, MessageSquare, Users } from 'lucide-react-native';
+import { CalendarCheck, CheckCircle2, MapPin, Megaphone, MessageSquare, Save, Users, XCircle } from 'lucide-react-native';
 import {
   ActivityIndicator,
+  Pressable,
   StyleProp,
   StyleSheet,
   Text,
@@ -16,14 +17,25 @@ import { AppScreen } from '@/components/AppScreen';
 import { FormTextInput } from '@/components/FormTextInput';
 import { RouteGuard } from '@/components/RouteGuard';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { GradientCard } from '@/components/ui/GradientCard';
+import { HeroSection } from '@/components/ui/HeroSection';
 import { SectionHeader } from '@/components/ui/SectionHeader';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { usePreferences } from '@/context/PreferencesContext';
+import { useTheme } from '@/hooks/useTheme';
+import {
+  demoChapter,
+  demoJoinRequests,
+  demoMemberProfiles,
+  getDemoProgressForProfile,
+} from '@/lib/demoData';
 import { supabase } from '@/lib/supabase';
 import { Database } from '@/types/database';
 
 type Chapter = Database['public']['Tables']['chapters']['Row'];
 type ChapterMember = Database['public']['Tables']['chapter_members']['Row'];
+type ChapterJoinRequest = Database['public']['Tables']['chapter_join_requests']['Row'];
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type WeeklyProgress = Database['public']['Tables']['weekly_progress']['Row'];
 
@@ -33,6 +45,11 @@ type MemberRow = {
   lastSubmittedAt: string | null;
   profile: Profile;
   streak: number;
+};
+
+type JoinRequestRow = {
+  profile: Profile | null;
+  request: ChapterJoinRequest;
 };
 
 function isWeekComplete(progress: WeeklyProgress) {
@@ -90,16 +107,46 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value));
 }
 
+function parseCoordinate(value: string, label: 'latitude' | 'longitude') {
+  if (!value.trim()) return null;
+
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`Enter a valid ${label}.`);
+  }
+
+  if (label === 'latitude' && (parsed < -90 || parsed > 90)) {
+    throw new Error('Latitude must be between -90 and 90.');
+  }
+
+  if (label === 'longitude' && (parsed < -180 || parsed > 180)) {
+    throw new Error('Longitude must be between -180 and 180.');
+  }
+
+  return parsed;
+}
+
 export default function FacilitatorScreen() {
-  const { profile, session } = useAuth();
+  const { isDemoMode, profile, session } = useAuth();
+  const { t } = usePreferences();
+  const theme = useTheme();
   const { width } = useWindowDimensions();
   const isWide = width >= 860;
   const [announcementBody, setAnnouncementBody] = useState('');
   const [announcementTitle, setAnnouncementTitle] = useState('');
   const [chapter, setChapter] = useState<Chapter | null>(null);
+  const [chapterDescription, setChapterDescription] = useState('');
+  const [chapterIsPublic, setChapterIsPublic] = useState(true);
+  const [chapterJoinPolicy, setChapterJoinPolicy] = useState<'invite_code' | 'request' | 'open'>('invite_code');
+  const [chapterLatitude, setChapterLatitude] = useState('');
+  const [chapterLongitude, setChapterLongitude] = useState('');
+  const [chapterMeetingDay, setChapterMeetingDay] = useState('');
+  const [chapterMeetingLocation, setChapterMeetingLocation] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [joinRequests, setJoinRequests] = useState<JoinRequestRow[]>([]);
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [promptBody, setPromptBody] = useState('');
   const [promptTitle, setPromptTitle] = useState('');
@@ -107,7 +154,45 @@ export default function FacilitatorScreen() {
 
   const canAccess = profile?.role === 'facilitator' || profile?.role === 'admin';
 
+  function hydrateChapterDraft(nextChapter: Chapter | null) {
+    setChapterDescription(nextChapter?.description ?? '');
+    setChapterIsPublic(nextChapter?.is_public ?? true);
+    setChapterJoinPolicy(nextChapter?.join_policy ?? 'invite_code');
+    setChapterLatitude(nextChapter?.latitude === null || nextChapter?.latitude === undefined ? '' : String(nextChapter.latitude));
+    setChapterLongitude(nextChapter?.longitude === null || nextChapter?.longitude === undefined ? '' : String(nextChapter.longitude));
+    setChapterMeetingDay(nextChapter?.meeting_day ?? '');
+    setChapterMeetingLocation(nextChapter?.meeting_location ?? '');
+  }
+
   const loadDashboard = useCallback(async () => {
+    if (isDemoMode && session && canAccess) {
+      setChapter(demoChapter);
+      hydrateChapterDraft(demoChapter);
+      setJoinRequests(
+        demoJoinRequests.map((request) => ({
+          profile: demoMemberProfiles.find((memberProfile) => memberProfile.id === request.profile_id) ?? null,
+          request,
+        })),
+      );
+      setMembers(
+        demoMemberProfiles.map((memberProfile) => {
+          const progressRows = getDemoProgressForProfile(memberProfile.id);
+          const lastSubmittedAt = getLastSubmittedAt(progressRows);
+
+          return {
+            currentWeek: computeCurrentWeek(progressRows),
+            inactive: isInactive(lastSubmittedAt),
+            lastSubmittedAt,
+            profile: memberProfile,
+            streak: computeStreak(progressRows),
+          };
+        }),
+      );
+      setErrorMessage('');
+      setIsLoading(false);
+      return;
+    }
+
     if (!supabase || !session || !canAccess) {
       setIsLoading(false);
       return;
@@ -144,9 +229,11 @@ export default function FacilitatorScreen() {
       }
 
       setChapter(nextChapter);
+      hydrateChapterDraft(nextChapter);
 
       if (!nextChapter) {
         setMembers([]);
+        setJoinRequests([]);
         return;
       }
 
@@ -158,6 +245,36 @@ export default function FacilitatorScreen() {
       if (memberResult.error) throw memberResult.error;
 
       const memberships = (memberResult.data ?? []) as ChapterMember[];
+      const requestsResult = await supabase
+        .from('chapter_join_requests')
+        .select('*')
+        .eq('chapter_id', nextChapter.id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true });
+
+      if (requestsResult.error) throw requestsResult.error;
+
+      const pendingRequests = (requestsResult.data ?? []) as ChapterJoinRequest[];
+      const requestProfileIds = pendingRequests.map((request) => request.profile_id);
+      let requestProfiles: Profile[] = [];
+
+      if (requestProfileIds.length > 0) {
+        const requestProfilesResult = await supabase
+          .from('profiles')
+          .select('*')
+          .in('id', requestProfileIds);
+
+        if (requestProfilesResult.error) throw requestProfilesResult.error;
+        requestProfiles = requestProfilesResult.data ?? [];
+      }
+
+      setJoinRequests(
+        pendingRequests.map((request) => ({
+          profile: requestProfiles.find((requestProfile) => requestProfile.id === request.profile_id) ?? null,
+          request,
+        })),
+      );
+
       const profileIds = memberships
         .map((membership) => membership.profile_id)
         .filter((id): id is string => Boolean(id));
@@ -208,13 +325,19 @@ export default function FacilitatorScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [canAccess, session]);
+  }, [canAccess, isDemoMode, session]);
 
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
 
   async function markAttendance(memberProfileId: string) {
+    if (isDemoMode) {
+      setErrorMessage('');
+      setSavedMessage('Attendance marked in demo mode.');
+      return;
+    }
+
     if (!supabase || !chapter) {
       return;
     }
@@ -239,7 +362,109 @@ export default function FacilitatorScreen() {
     }
   }
 
+  async function saveChapterDetails() {
+    if (!chapter) return;
+
+    setErrorMessage('');
+    setSavedMessage('');
+    setIsSaving(true);
+
+    try {
+      const nextLatitude = parseCoordinate(chapterLatitude, 'latitude');
+      const nextLongitude = parseCoordinate(chapterLongitude, 'longitude');
+      const updates: Database['public']['Tables']['chapters']['Update'] = {
+        description: chapterDescription.trim() || null,
+        is_public: chapterIsPublic,
+        join_policy: chapterJoinPolicy,
+        latitude: nextLatitude,
+        longitude: nextLongitude,
+        meeting_day: chapterMeetingDay.trim() || null,
+        meeting_location: chapterMeetingLocation.trim() || null,
+        public_join_enabled: chapterJoinPolicy === 'open',
+      };
+
+      if (isDemoMode) {
+        const nextChapter = { ...chapter, ...updates };
+        setChapter(nextChapter);
+        hydrateChapterDraft(nextChapter);
+        setSavedMessage('Chapter details saved in demo mode.');
+        return;
+      }
+
+      if (!supabase) {
+        throw new Error('Supabase is not configured. Add your Expo public Supabase env vars.');
+      }
+
+      const { error } = await supabase.from('chapters').update(updates).eq('id', chapter.id);
+
+      if (error) throw error;
+
+      setSavedMessage('Chapter details saved.');
+      await loadDashboard();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not save chapter details.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function reviewJoinRequest(requestId: string, nextStatus: 'approved' | 'rejected') {
+    setErrorMessage('');
+    setSavedMessage('');
+    setIsSaving(true);
+
+    try {
+      if (isDemoMode) {
+        setJoinRequests((current) => current.filter((row) => row.request.id !== requestId));
+        setSavedMessage(nextStatus === 'approved' ? 'Join request approved in demo mode.' : 'Join request rejected in demo mode.');
+        return;
+      }
+
+      if (!supabase) {
+        throw new Error('Supabase is not configured. Add your Expo public Supabase env vars.');
+      }
+
+      const { error } = await supabase.rpc('review_chapter_join_request', {
+        next_status: nextStatus,
+        target_request_id: requestId,
+      });
+
+      if (error) throw error;
+
+      setSavedMessage(nextStatus === 'approved' ? 'Join request approved.' : 'Join request rejected.');
+      await loadDashboard();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not review join request.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   async function createPost(postType: 'announcement' | 'weekly_prompt') {
+    if (isDemoMode) {
+      const title = postType === 'announcement' ? announcementTitle : promptTitle;
+      const body = postType === 'announcement' ? announcementBody : promptBody;
+
+      if (!title.trim() || !body.trim()) {
+        setErrorMessage('Add a title and body before posting.');
+        return;
+      }
+
+      setErrorMessage('');
+
+      if (postType === 'announcement') {
+        setAnnouncementTitle('');
+        setAnnouncementBody('');
+        setSavedMessage('Announcement saved in demo mode.');
+      } else {
+        setPromptTitle('');
+        setPromptBody('');
+        setSavedMessage('Weekly prompt saved in demo mode.');
+      }
+
+      return;
+    }
+
     if (!supabase || !session || !chapter) {
       return;
     }
@@ -291,54 +516,143 @@ export default function FacilitatorScreen() {
   return (
     <RouteGuard mode="protected">
       <AppScreen contentStyle={styles.screenContent} innerStyle={isWide ? styles.wideInner : null}>
-        <View style={styles.header}>
-          <Text style={styles.heading}>Facilitator</Text>
-          <Text style={styles.subheading}>Support the group. Keep it clear.</Text>
-        </View>
+        <HeroSection
+          eyebrow="Chapter operations"
+          icon={Users}
+          subtitle="Support the group without turning the app into admin clutter."
+          title={t('facilitator')}
+        />
 
         {!canAccess ? (
           <AppCard>
-            <Text style={styles.title}>Facilitator access only.</Text>
-            <Text style={styles.body}>This dashboard is for facilitators and admins.</Text>
+            <Text style={[styles.title, { color: theme.textPrimary }]}>Facilitator access only.</Text>
+            <Text style={[styles.body, { color: theme.textSecondary }]}>This dashboard is for facilitators and admins.</Text>
           </AppCard>
         ) : null}
 
         {canAccess && isLoading ? (
           <AppCard>
             <View style={styles.loadingRow}>
-              <ActivityIndicator color={colors.black} />
-              <Text style={styles.loadingText}>Loading chapter...</Text>
+              <ActivityIndicator color={theme.accent} />
+              <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading chapter...</Text>
             </View>
           </AppCard>
         ) : null}
 
         {errorMessage ? (
           <AppCard>
-            <Text style={styles.error}>{errorMessage}</Text>
+            <Text style={[styles.error, { color: theme.error }]}>{errorMessage}</Text>
             <View style={styles.cardAction}>
-              <AppPressButton label="Try again" onPress={loadDashboard} variant="secondary" />
+              <AppPressButton label={t('tryAgain')} onPress={loadDashboard} variant="secondary" />
             </View>
           </AppCard>
         ) : null}
 
-        {savedMessage ? <Text style={styles.saved}>{savedMessage}</Text> : null}
+        {savedMessage ? <Text style={[styles.saved, { color: theme.success }]}>{savedMessage}</Text> : null}
 
         {canAccess && !isLoading && !chapter ? (
           <AppCard>
-            <Text style={styles.title}>No chapter assigned.</Text>
-            <Text style={styles.body}>Create or assign a chapter before using facilitator tools.</Text>
+            <Text style={[styles.title, { color: theme.textPrimary }]}>No chapter assigned.</Text>
+            <Text style={[styles.body, { color: theme.textSecondary }]}>
+              Create or assign a chapter before using facilitator tools.
+            </Text>
           </AppCard>
         ) : null}
 
         {canAccess && chapter ? (
           <>
-            <AppCard tone="dark">
-              <Text style={styles.darkEyebrow}>Your chapter</Text>
-              <Text style={styles.darkTitle}>{chapter.name}</Text>
-              <Text style={[styles.body, styles.darkBody]}>
+            <GradientCard variant="dark">
+              <Text style={[styles.darkEyebrow, { color: theme.accent }]}>Your chapter</Text>
+              <Text style={[styles.darkTitle, { color: theme.textInverse }]}>{chapter.name}</Text>
+              <Text style={[styles.body, { color: theme.textInverseMuted }]}>
                 {chapter.region ? `${chapter.region}, ` : ''}
                 {chapter.country ?? 'Local chapter'}
               </Text>
+            </GradientCard>
+
+            <AppCard>
+              <SectionHeader icon={MapPin} title="Chapter details" subtitle="Keep discovery information accurate." />
+              <View style={styles.form}>
+                <FormTextInput
+                  label="Description"
+                  multiline
+                  onChangeText={setChapterDescription}
+                  placeholder="What members should know"
+                  style={styles.multiline}
+                  textAlignVertical="top"
+                  value={chapterDescription}
+                />
+                <FormTextInput label="Meeting day" onChangeText={setChapterMeetingDay} placeholder="Tuesday" value={chapterMeetingDay} />
+                <FormTextInput
+                  label="Meeting location"
+                  onChangeText={setChapterMeetingLocation}
+                  placeholder="Community center"
+                  value={chapterMeetingLocation}
+                />
+                <View style={styles.coordinateRow}>
+                  <View style={styles.coordinateField}>
+                    <FormTextInput
+                      inputMode="decimal"
+                      keyboardType="decimal-pad"
+                      label="Latitude"
+                      onChangeText={setChapterLatitude}
+                      placeholder="Optional"
+                      value={chapterLatitude}
+                    />
+                  </View>
+                  <View style={styles.coordinateField}>
+                    <FormTextInput
+                      inputMode="decimal"
+                      keyboardType="decimal-pad"
+                      label="Longitude"
+                      onChangeText={setChapterLongitude}
+                      placeholder="Optional"
+                      value={chapterLongitude}
+                    />
+                  </View>
+                </View>
+                <ChoiceGroup
+                  label="Visibility"
+                  options={[
+                    { label: 'Public', value: 'public' },
+                    { label: 'Private', value: 'private' },
+                  ]}
+                  value={chapterIsPublic ? 'public' : 'private'}
+                  onChange={(value) => setChapterIsPublic(value === 'public')}
+                />
+                <ChoiceGroup
+                  label="Join policy"
+                  options={[
+                    { label: 'Invite', value: 'invite_code' },
+                    { label: 'Request', value: 'request' },
+                    { label: 'Open', value: 'open' },
+                  ]}
+                  value={chapterJoinPolicy}
+                  onChange={(value) => setChapterJoinPolicy(value as 'invite_code' | 'request' | 'open')}
+                />
+              </View>
+              <View style={styles.cardAction}>
+                <AppPressButton disabled={isSaving} icon={Save} label="Save chapter details" onPress={saveChapterDetails} variant="secondary" />
+              </View>
+            </AppCard>
+
+            <AppCard>
+              <SectionHeader icon={Users} title="Join requests" subtitle="Approve only people who should join your chapter." />
+              {joinRequests.length === 0 ? (
+                <EmptyState body="No pending join requests." icon={Users} title="All clear" />
+              ) : (
+                <View style={styles.requestList}>
+                  {joinRequests.map((row) => (
+                    <JoinRequestCard
+                      disabled={isSaving}
+                      key={row.request.id}
+                      row={row}
+                      onApprove={() => reviewJoinRequest(row.request.id, 'approved')}
+                      onReject={() => reviewJoinRequest(row.request.id, 'rejected')}
+                    />
+                  ))}
+                </View>
+              )}
             </AppCard>
 
             <AppCard>
@@ -404,22 +718,31 @@ function MemberRow({
   member: MemberRow;
   onMarkAttendance: (profileId: string) => void;
 }) {
+  const theme = useTheme();
+
   return (
-    <View style={[styles.memberRow, isWide ? styles.memberRowWide : null]}>
+    <View style={[styles.memberRow, { backgroundColor: theme.card, borderColor: theme.border }, isWide ? styles.memberRowWide : null]}>
       <View style={styles.memberMain}>
-        <Text style={styles.memberName}>{member.profile.full_name ?? 'Unnamed member'}</Text>
-        <Text style={styles.memberMeta}>Week {member.currentWeek}</Text>
+        <Text style={[styles.memberName, { color: theme.textPrimary }]}>{member.profile.full_name ?? 'Unnamed member'}</Text>
+        <Text style={[styles.memberMeta, { color: theme.textSecondary }]}>Week {member.currentWeek}</Text>
       </View>
       <View style={styles.memberStats}>
-        <Text style={styles.statLabel}>Last submitted</Text>
-        <Text style={styles.statValue}>{formatDate(member.lastSubmittedAt)}</Text>
+        <Text style={[styles.statLabel, { color: theme.textMuted }]}>Last submitted</Text>
+        <Text style={[styles.statValue, { color: theme.textPrimary }]}>{formatDate(member.lastSubmittedAt)}</Text>
       </View>
       <View style={styles.memberStats}>
-        <Text style={styles.statLabel}>Streak</Text>
-        <Text style={styles.statValue}>{member.streak}</Text>
+        <Text style={[styles.statLabel, { color: theme.textMuted }]}>Streak</Text>
+        <Text style={[styles.statValue, { color: theme.textPrimary }]}>{member.streak}</Text>
       </View>
-      <View style={[styles.flag, member.inactive ? styles.flagInactive : styles.flagActive]}>
-        <Text style={[styles.flagText, member.inactive ? styles.flagInactiveText : styles.flagActiveText]}>
+      <View
+        style={[
+          styles.flag,
+          {
+            backgroundColor: member.inactive ? theme.cardMuted : theme.accentSurface,
+            borderColor: member.inactive ? theme.border : theme.accentBorder,
+          },
+        ]}>
+        <Text style={[styles.flagText, { color: member.inactive ? theme.textPrimary : theme.warning }]}>
           {member.inactive ? 'Inactive' : 'Active'}
         </Text>
       </View>
@@ -431,6 +754,88 @@ function MemberRow({
           onPress={() => onMarkAttendance(member.profile.id)}
           variant="secondary"
         />
+      </View>
+    </View>
+  );
+}
+
+function JoinRequestCard({
+  disabled,
+  onApprove,
+  onReject,
+  row,
+}: {
+  disabled: boolean;
+  onApprove: () => void;
+  onReject: () => void;
+  row: JoinRequestRow;
+}) {
+  const theme = useTheme();
+
+  return (
+    <View style={[styles.requestCard, { backgroundColor: theme.cardMuted, borderColor: theme.border }]}>
+      <View style={styles.requestCopy}>
+        <Text style={[styles.memberName, { color: theme.textPrimary }]}>
+          {row.profile?.full_name ?? `Profile ${row.request.profile_id.slice(0, 8)}`}
+        </Text>
+        <Text style={[styles.memberMeta, { color: theme.textSecondary }]}>
+          {row.request.message ?? 'No message included.'}
+        </Text>
+        <Text style={[styles.statLabel, { color: theme.textMuted }]}>
+          Requested {formatDate(row.request.created_at)}
+        </Text>
+      </View>
+      <View style={styles.requestActions}>
+        <View style={styles.requestAction}>
+          <AppPressButton disabled={disabled} icon={XCircle} label="Reject" onPress={onReject} variant="secondary" />
+        </View>
+        <View style={styles.requestAction}>
+          <AppPressButton disabled={disabled} icon={CheckCircle2} label="Approve" onPress={onApprove} variant="accent" />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function ChoiceGroup({
+  label,
+  onChange,
+  options,
+  value,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  options: { label: string; value: string }[];
+  value: string;
+}) {
+  const theme = useTheme();
+
+  return (
+    <View style={styles.choiceGroup}>
+      <Text style={[styles.choiceLabel, { color: theme.textPrimary }]}>{label}</Text>
+      <View style={styles.choiceRow}>
+        {options.map((option) => {
+          const active = option.value === value;
+
+          return (
+            <Pressable
+              accessibilityLabel={`${label}: ${option.label}`}
+              accessibilityRole="button"
+              key={option.value}
+              onPress={() => onChange(option.value)}
+              style={[
+                styles.choiceButton,
+                {
+                  backgroundColor: active ? theme.accent : theme.card,
+                  borderColor: active ? theme.accent : theme.border,
+                },
+              ]}>
+              <Text style={[styles.choiceText, { color: active ? theme.accentText : theme.textPrimary }]}>
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );
@@ -497,13 +902,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   heading: {
-    color: colors.text,
     fontSize: typography.hero,
     fontWeight: '900',
     lineHeight: 54,
   },
   subheading: {
-    color: colors.mutedText,
     fontSize: 18,
     fontWeight: '800',
   },
@@ -513,47 +916,37 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   loadingText: {
-    color: colors.mutedText,
     fontSize: 18,
     fontWeight: '700',
   },
   eyebrow: {
-    color: colors.mutedText,
     fontSize: 15,
     fontWeight: '800',
     marginBottom: spacing.sm,
     textTransform: 'uppercase',
   },
   title: {
-    color: colors.text,
     fontSize: 34,
     fontWeight: '900',
     lineHeight: 40,
   },
   darkEyebrow: {
-    color: colors.gold,
     fontSize: 14,
     fontWeight: '900',
     marginBottom: spacing.sm,
     textTransform: 'uppercase',
   },
   darkTitle: {
-    color: colors.inverseText,
     fontSize: 38,
     fontWeight: '900',
     lineHeight: 44,
   },
   body: {
-    color: colors.mutedText,
     fontSize: 18,
     lineHeight: 28,
     marginTop: spacing.md,
   },
-  darkBody: {
-    color: colors.inverseMuted,
-  },
   sectionTitle: {
-    color: colors.text,
     fontSize: 26,
     fontWeight: '900',
   },
@@ -565,8 +958,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   memberRow: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
     borderRadius: radius.md,
     borderWidth: 1,
     gap: spacing.md,
@@ -581,12 +972,10 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   memberName: {
-    color: colors.text,
     fontSize: 20,
     fontWeight: '900',
   },
   memberMeta: {
-    color: colors.mutedText,
     fontSize: 16,
     fontWeight: '800',
   },
@@ -595,13 +984,11 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   statLabel: {
-    color: colors.mutedText,
     fontSize: 13,
     fontWeight: '900',
     textTransform: 'uppercase',
   },
   statValue: {
-    color: colors.text,
     fontSize: 16,
     fontWeight: '800',
   },
@@ -612,23 +999,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
-  flagActive: {
-    backgroundColor: colors.accentSurface,
-    borderColor: colors.gold,
-  },
-  flagInactive: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-  },
   flagText: {
     fontSize: 14,
     fontWeight: '900',
-  },
-  flagActiveText: {
-    color: colors.warning,
-  },
-  flagInactiveText: {
-    color: colors.text,
   },
   attendanceAction: {
     flex: 1,
@@ -648,6 +1021,15 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginTop: spacing.lg,
   },
+  coordinateRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+  },
+  coordinateField: {
+    flex: 1,
+    minWidth: 180,
+  },
   multiline: {
     minHeight: 112,
   },
@@ -655,15 +1037,59 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
   },
   error: {
-    color: colors.text,
     fontSize: 17,
     fontWeight: '700',
     lineHeight: 24,
   },
   saved: {
-    color: colors.success,
     fontSize: 17,
     fontWeight: '900',
     textAlign: 'center',
+  },
+  requestList: {
+    gap: spacing.md,
+    marginTop: spacing.lg,
+  },
+  requestCard: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    gap: spacing.md,
+    padding: spacing.md,
+  },
+  requestCopy: {
+    gap: spacing.xs,
+  },
+  requestActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+  },
+  requestAction: {
+    flex: 1,
+    minWidth: 150,
+  },
+  choiceGroup: {
+    gap: spacing.sm,
+  },
+  choiceLabel: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  choiceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  choiceButton: {
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  choiceText: {
+    fontSize: 13,
+    fontWeight: '900',
+    textTransform: 'uppercase',
   },
 });

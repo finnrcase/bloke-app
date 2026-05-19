@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { LogIn, UserPlus } from 'lucide-react-native';
+import { Compass, LogIn, UserPlus } from 'lucide-react-native';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -8,11 +8,17 @@ import { AppCard } from '@/components/AppCard';
 import { AppPressButton } from '@/components/AppPressButton';
 import { AppScreen } from '@/components/AppScreen';
 import { FormTextInput } from '@/components/FormTextInput';
-import { colors, spacing, typography } from '@/constants/theme';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { spacing, typography } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/hooks/useTheme';
 import { signInWithEmail } from '@/lib/auth';
+import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
 
 export default function LoginScreen() {
+  const { startDemo } = useAuth();
+  const theme = useTheme();
   const [email, setEmail] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -51,12 +57,17 @@ export default function LoginScreen() {
     }
   }
 
+  function handleDemoLogin() {
+    startDemo();
+    router.replace('/home');
+  }
+
   return (
     <AppScreen>
-      <AppCard>
-        <Text style={styles.eyebrow}>BLOKE ACCOUNT</Text>
-        <Text style={styles.title}>Log in</Text>
-        <Text style={styles.body}>Step back into the work. Your next week is waiting.</Text>
+      <GlassCard>
+        <Text style={[styles.eyebrow, { color: theme.accent }]}>BLOKE ACCOUNT</Text>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>Log in</Text>
+        <Text style={[styles.body, { color: theme.textSecondary }]}>Step back into the work. Your next week is waiting.</Text>
 
         <View style={styles.form}>
           <FormTextInput
@@ -79,9 +90,12 @@ export default function LoginScreen() {
           />
         </View>
 
-        {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
+        {errorMessage ? <Text style={[styles.error, { color: theme.error }]}>{errorMessage}</Text> : null}
 
         <View style={styles.actions}>
+          {env.isDemoMode ? (
+            <AppPressButton icon={Compass} label="Continue Demo" onPress={handleDemoLogin} variant="accent" />
+          ) : null}
           <AppPressButton
             disabled={isLoading}
             icon={LogIn}
@@ -90,27 +104,24 @@ export default function LoginScreen() {
           />
           <AppButton href="/signup" icon={UserPlus} label="Create Account" variant="secondary" />
         </View>
-      </AppCard>
+      </GlassCard>
     </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
   eyebrow: {
-    color: colors.gold,
     fontSize: typography.eyebrow,
     fontWeight: '900',
     marginBottom: spacing.sm,
     textTransform: 'uppercase',
   },
   title: {
-    color: colors.text,
     fontSize: typography.titleLarge,
     fontWeight: '900',
     lineHeight: 46,
   },
   body: {
-    color: colors.mutedText,
     fontSize: 18,
     lineHeight: 28,
     marginTop: spacing.sm,
@@ -120,7 +131,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
   },
   error: {
-    color: colors.text,
     fontSize: 16,
     fontWeight: '700',
     marginTop: spacing.lg,

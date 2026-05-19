@@ -7,8 +7,9 @@ import { env } from '@/lib/env';
 import { Database } from '@/types/database';
 
 export const isSupabaseConfigured = Boolean(env.supabaseUrl && env.supabaseAnonKey);
+export const shouldUseSupabase = !env.isDemoMode && isSupabaseConfigured;
 
-export const supabase = isSupabaseConfigured
+export const supabase = shouldUseSupabase
   ? createClient<Database>(env.supabaseUrl, env.supabaseAnonKey, {
       auth: {
         autoRefreshToken: true,

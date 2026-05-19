@@ -1,19 +1,25 @@
 import { router } from 'expo-router';
 import { CheckCircle2 } from 'lucide-react-native';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppCard } from '@/components/AppCard';
 import { AppPressButton } from '@/components/AppPressButton';
 import { AppScreen } from '@/components/AppScreen';
 import { FormTextInput } from '@/components/FormTextInput';
 import { RouteGuard } from '@/components/RouteGuard';
-import { colors, spacing, typography } from '@/constants/theme';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { usePreferences } from '@/context/PreferencesContext';
+import { useTheme } from '@/hooks/useTheme';
+import { normalizeLanguage } from '@/lib/i18n';
 import { supabase } from '@/lib/supabase';
 
 export default function OnboardingScreen() {
   const { refreshProfile, session } = useAuth();
+  const { t } = usePreferences();
+  const theme = useTheme();
   const [age, setAge] = useState('');
   const [country, setCountry] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -38,6 +44,8 @@ export default function OnboardingScreen() {
 
     const parsedAge = Number.parseInt(age, 10);
 
+    const normalizedLanguage = normalizeLanguage(language);
+
     if (!fullName.trim() || !age.trim() || !country.trim() || !language.trim() || !personalGoal.trim()) {
       setErrorMessage('Fill in your name, age, country, language, and goal.');
       return;
@@ -56,7 +64,8 @@ export default function OnboardingScreen() {
         country: country.trim(),
         full_name: fullName.trim(),
         id: session.user.id,
-        language: language.trim().toLowerCase(),
+        appearance: 'dark',
+        language: normalizedLanguage,
         onboarding_complete: true,
         personal_goal: personalGoal.trim(),
         role: 'participant',
@@ -89,10 +98,10 @@ export default function OnboardingScreen() {
   return (
     <RouteGuard mode="onboarding">
       <AppScreen>
-        <AppCard>
-          <Text style={styles.eyebrow}>FIRST STEP</Text>
-          <Text style={styles.title}>Set up your profile</Text>
-          <Text style={styles.body}>
+        <GlassCard>
+          <Text style={[styles.eyebrow, { color: theme.accent }]}>FIRST STEP</Text>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>Set up your profile</Text>
+          <Text style={[styles.body, { color: theme.textSecondary }]}>
             A few details help connect you to the right path, chapter, and first goal.
           </Text>
 
@@ -119,13 +128,34 @@ export default function OnboardingScreen() {
               placeholder="United States"
               value={country}
             />
-            <FormTextInput
-              autoCapitalize="none"
-              label="Preferred language"
-              onChangeText={setLanguage}
-              placeholder="en"
-              value={language}
-            />
+            <View style={styles.languageField}>
+              <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>{t('language')}</Text>
+              <View style={[styles.languageOptions, { backgroundColor: theme.cardMuted, borderColor: theme.border }]}>
+                {[
+                  { label: t('english'), value: 'en' },
+                  { label: t('spanish'), value: 'es' },
+                ].map((option) => {
+                  const selected = normalizeLanguage(language) === option.value;
+
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      key={option.value}
+                      onPress={() => setLanguage(option.value)}
+                      style={[styles.languageOption, selected && { backgroundColor: theme.cardInverted }]}>
+                      <Text
+                        style={[
+                          styles.languageOptionText,
+                          { color: selected ? theme.textInverse : theme.textPrimary },
+                        ]}>
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
             <FormTextInput
               autoCapitalize="characters"
               label="Chapter invite code"
@@ -144,7 +174,7 @@ export default function OnboardingScreen() {
             />
           </View>
 
-          {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
+          {errorMessage ? <Text style={[styles.error, { color: theme.error }]}>{errorMessage}</Text> : null}
 
           <View style={styles.actions}>
             <AppPressButton
@@ -154,7 +184,7 @@ export default function OnboardingScreen() {
               onPress={handleSubmit}
             />
           </View>
-        </AppCard>
+        </GlassCard>
       </AppScreen>
     </RouteGuard>
   );
@@ -162,20 +192,17 @@ export default function OnboardingScreen() {
 
 const styles = StyleSheet.create({
   eyebrow: {
-    color: colors.gold,
     fontSize: typography.eyebrow,
     fontWeight: '900',
     marginBottom: spacing.sm,
     textTransform: 'uppercase',
   },
   title: {
-    color: colors.text,
     fontSize: typography.titleLarge,
     fontWeight: '900',
     lineHeight: 46,
   },
   body: {
-    color: colors.mutedText,
     fontSize: 18,
     lineHeight: 28,
     marginTop: spacing.sm,
@@ -184,11 +211,37 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginTop: spacing.xl,
   },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  languageField: {
+    gap: spacing.sm,
+  },
+  languageOptions: {
+    borderRadius: 28,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    padding: spacing.sm,
+  },
+  languageOption: {
+    alignItems: 'center',
+    borderRadius: 22,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 54,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  languageOptionText: {
+    fontSize: 16,
+    fontWeight: '900',
+  },
   multiline: {
     minHeight: 104,
   },
   error: {
-    color: colors.text,
     fontSize: 16,
     fontWeight: '700',
     marginTop: spacing.lg,

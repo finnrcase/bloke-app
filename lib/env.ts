@@ -1,11 +1,17 @@
 import Constants from 'expo-constants';
 
 type PublicEnv = {
+  isDemoMode: boolean;
   supabaseUrl: string;
   supabaseAnonKey: string;
 };
 
-function readPublicEnv(name: 'EXPO_PUBLIC_SUPABASE_URL' | 'EXPO_PUBLIC_SUPABASE_ANON_KEY') {
+type PublicEnvName =
+  | 'EXPO_PUBLIC_DEMO_MODE'
+  | 'EXPO_PUBLIC_SUPABASE_ANON_KEY'
+  | 'EXPO_PUBLIC_SUPABASE_URL';
+
+function readPublicEnv(name: PublicEnvName) {
   const processValue = process.env[name];
   const extraValue = Constants.expoConfig?.extra?.[name];
 
@@ -20,15 +26,24 @@ function readPublicEnv(name: 'EXPO_PUBLIC_SUPABASE_URL' | 'EXPO_PUBLIC_SUPABASE_
   return '';
 }
 
+function readBooleanEnv(name: PublicEnvName) {
+  return readPublicEnv(name).toLowerCase() === 'true';
+}
+
 export const env: PublicEnv = {
+  isDemoMode: readBooleanEnv('EXPO_PUBLIC_DEMO_MODE'),
   supabaseUrl: readPublicEnv('EXPO_PUBLIC_SUPABASE_URL'),
   supabaseAnonKey: readPublicEnv('EXPO_PUBLIC_SUPABASE_ANON_KEY'),
 };
 
 export function assertSupabaseEnv() {
+  if (env.isDemoMode) {
+    return;
+  }
+
   if (!env.supabaseUrl || !env.supabaseAnonKey) {
     throw new Error(
-      'Missing Supabase environment variables. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY.',
+      'Missing Supabase environment variables. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY, or set EXPO_PUBLIC_DEMO_MODE=true for a local demo.',
     );
   }
 }

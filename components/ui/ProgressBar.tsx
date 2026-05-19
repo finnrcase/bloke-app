@@ -1,20 +1,32 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { borderRadius, colors, spacing } from '@/constants/theme';
+import { borderRadius, spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 type ProgressBarProps = {
   label?: string;
+  tone?: 'default' | 'inverse';
   value: number;
 };
 
-export function ProgressBar({ label, value }: ProgressBarProps) {
+export function ProgressBar({ label, tone = 'default', value }: ProgressBarProps) {
   const clampedValue = Math.max(0, Math.min(1, value));
+  const theme = useTheme();
+  const isInverse = tone === 'inverse';
 
   return (
     <View style={styles.wrap}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
-      <View style={styles.track}>
-        <View style={[styles.fill, { width: `${clampedValue * 100}%` }]} />
+      {label ? (
+        <Text style={[styles.label, { color: isInverse ? theme.textInverseMuted : theme.textMuted }]}>
+          {label}
+        </Text>
+      ) : null}
+      <View
+        style={[
+          styles.track,
+          { backgroundColor: isInverse ? 'rgba(255, 249, 239, 0.16)' : theme.progressTrack },
+        ]}>
+        <View style={[styles.fill, { backgroundColor: theme.accent, width: `${clampedValue * 100}%` }]} />
       </View>
     </View>
   );
@@ -25,19 +37,16 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   label: {
-    color: colors.mutedText,
     fontSize: 14,
     fontWeight: '900',
     textTransform: 'uppercase',
   },
   track: {
-    backgroundColor: colors.surfaceAlt,
     borderRadius: borderRadius.pill,
-    height: 12,
+    height: 14,
     overflow: 'hidden',
   },
   fill: {
-    backgroundColor: colors.gold,
     borderRadius: borderRadius.pill,
     height: '100%',
   },

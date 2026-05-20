@@ -19,3 +19,5 @@ export const supabase = shouldUseSupabase
       },
     })
   : null;
+
+export type SupabaseClient = NonNullable<typeof supabase>;

@@ -4,8 +4,10 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
+import { enableFreeze } from 'react-native-screens';
 
 import { AppSplash } from '@/components/ui/AppSplash';
+import { AdminProvider } from '@/context/AdminContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { PreferencesProvider } from '@/context/PreferencesContext';
 import { useTheme } from '@/hooks/useTheme';
@@ -16,6 +18,7 @@ export const unstable_settings = {
   initialRouteName: 'index',
 };
 
+enableFreeze(true);
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -39,9 +42,11 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <PreferencesProvider>
-        <RootStack />
-      </PreferencesProvider>
+      <AdminProvider>
+        <PreferencesProvider>
+          <RootStack />
+        </PreferencesProvider>
+      </AdminProvider>
     </AuthProvider>
   );
 }
@@ -69,9 +74,14 @@ function RootStack() {
         <Stack.Screen name="(public)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="admin" options={{ headerShown: false }} />
+        <Stack.Screen name="check-in" options={{ headerShown: false }} />
+        <Stack.Screen name="chapter/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="chapters" options={{ title: 'Chapter Directory' }} />
         <Stack.Screen name="onboarding" options={{ title: 'Onboarding' }} />
         <Stack.Screen name="facilitator" options={{ title: 'Facilitator' }} />
+        <Stack.Screen name="privacy" options={{ title: 'Privacy Policy' }} />
+        <Stack.Screen name="terms" options={{ title: 'Terms' }} />
+        <Stack.Screen name="support" options={{ title: 'Support' }} />
       </Stack>
     </ThemeProvider>
   );

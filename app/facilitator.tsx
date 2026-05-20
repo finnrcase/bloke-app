@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarCheck, CheckCircle2, MapPin, Megaphone, MessageSquare, Save, Users, XCircle } from 'lucide-react-native';
+import {
+  CalendarCheck,
+  CheckCircle2,
+  KeyRound,
+  MapPin,
+  Megaphone,
+  MessageSquare,
+  Save,
+  Ticket,
+  Users,
+  XCircle,
+} from 'lucide-react-native';
 import {
   ActivityIndicator,
   Pressable,
@@ -21,6 +32,7 @@ import { GradientCard } from '@/components/ui/GradientCard';
 import { HeroSection } from '@/components/ui/HeroSection';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { radius, spacing, typography } from '@/constants/theme';
+import { useAdminState } from '@/context/AdminContext';
 import { useAuth } from '@/context/AuthContext';
 import { usePreferences } from '@/context/PreferencesContext';
 import { useTheme } from '@/hooks/useTheme';
@@ -31,11 +43,13 @@ import {
   getDemoProgressForProfile,
 } from '@/lib/demoData';
 import { supabase } from '@/lib/supabase';
+import { editChapterAction, generateInviteCodeAction, reviewMemberAction } from '@/lib/supabase/protectedActions';
 import { Database } from '@/types/database';
 
 type Chapter = Database['public']['Tables']['chapters']['Row'];
 type ChapterMember = Database['public']['Tables']['chapter_members']['Row'];
 type ChapterJoinRequest = Database['public']['Tables']['chapter_join_requests']['Row'];
+type InviteCode = Database['public']['Tables']['invite_codes']['Row'];
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type WeeklyProgress = Database['public']['Tables']['weekly_progress']['Row'];
 
@@ -127,8 +141,46 @@ function parseCoordinate(value: string, label: 'latitude' | 'longitude') {
   return parsed;
 }
 
+function generateReadableInviteCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const segments = Array.from({ length: 2 }, () =>
+    Array.from({ length: 4 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join(''),
+  );
+
+  return `BLOKE-${segments.join('-')}`;
+}
+
+function parseInviteExpiration(value: string) {
+  if (!value.trim()) return null;
+
+  const parsed = new Date(value.trim());
+
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error('Enter expiration as YYYY-MM-DD, or leave it blank.');
+  }
+
+  if (parsed.getTime() <= Date.now()) {
+    throw new Error('Expiration must be in the future.');
+  }
+
+  return parsed.toISOString();
+}
+
+function parseInviteMaxUses(value: string) {
+  if (!value.trim()) return null;
+
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error('Max uses must be a whole number above zero.');
+  }
+
+  return parsed;
+}
+
 export default function FacilitatorScreen() {
   const { isDemoMode, profile, session } = useAuth();
+  const adminState = useAdminState();
   const { t } = usePreferences();
   const theme = useTheme();
   const { width } = useWindowDimensions();
@@ -146,13 +198,16 @@ export default function FacilitatorScreen() {
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
+  const [inviteExpiresAt, setInviteExpiresAt] = useState('');
+  const [inviteMaxUses, setInviteMaxUses] = useState('10');
   const [joinRequests, setJoinRequests] = useState<JoinRequestRow[]>([]);
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [promptBody, setPromptBody] = useState('');
   const [promptTitle, setPromptTitle] = useState('');
   const [savedMessage, setSavedMessage] = useState('');
 
-  const canAccess = profile?.role === 'facilitator' || profile?.role === 'admin';
+  const canAccess = adminState.isAdmin || adminState.leaderMemberships.length > 0;
 
   function hydrateChapterDraft(nextChapter: Chapter | null) {
     setChapterDescription(nextChapter?.description ?? '');
@@ -188,6 +243,18 @@ export default function FacilitatorScreen() {
           };
         }),
       );
+      setInviteCodes([
+        {
+          chapter_id: demoChapter.id,
+          code: 'BLOKE-DEMO-2026',
+          created_at: new Date().toISOString(),
+          created_by: session.user.id,
+          current_uses: 2,
+          expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14).toISOString(),
+          id: 'demo-invite-code',
+          max_uses: 10,
+        },
+      ]);
       setErrorMessage('');
       setIsLoading(false);
       return;
@@ -208,7 +275,8 @@ export default function FacilitatorScreen() {
           .from('chapter_members')
           .select('*')
           .eq('profile_id', session.user.id)
-          .eq('role', 'facilitator')
+          .in('role', ['facilitator', 'chapter_leader'])
+          .eq('status', 'active')
           .limit(1),
       ]);
 
@@ -234,6 +302,7 @@ export default function FacilitatorScreen() {
       if (!nextChapter) {
         setMembers([]);
         setJoinRequests([]);
+        setInviteCodes([]);
         return;
       }
 
@@ -274,6 +343,15 @@ export default function FacilitatorScreen() {
           request,
         })),
       );
+
+      const inviteCodesResult = await supabase
+        .from('invite_codes')
+        .select('*')
+        .eq('chapter_id', nextChapter.id)
+        .order('created_at', { ascending: false });
+
+      if (inviteCodesResult.error) throw inviteCodesResult.error;
+      setInviteCodes(inviteCodesResult.data ?? []);
 
       const profileIds = memberships
         .map((membership) => membership.profile_id)
@@ -395,9 +473,7 @@ export default function FacilitatorScreen() {
         throw new Error('Supabase is not configured. Add your Expo public Supabase env vars.');
       }
 
-      const { error } = await supabase.from('chapters').update(updates).eq('id', chapter.id);
-
-      if (error) throw error;
+      await editChapterAction(profile, adminState.leaderMemberships, chapter.id, updates);
 
       setSavedMessage('Chapter details saved.');
       await loadDashboard();
@@ -424,17 +500,60 @@ export default function FacilitatorScreen() {
         throw new Error('Supabase is not configured. Add your Expo public Supabase env vars.');
       }
 
-      const { error } = await supabase.rpc('review_chapter_join_request', {
-        next_status: nextStatus,
-        target_request_id: requestId,
-      });
+      if (!chapter) {
+        throw new Error('No chapter selected.');
+      }
 
-      if (error) throw error;
+      await reviewMemberAction(profile, adminState.leaderMemberships, chapter.id, requestId, nextStatus);
 
       setSavedMessage(nextStatus === 'approved' ? 'Join request approved.' : 'Join request rejected.');
       await loadDashboard();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Could not review join request.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function generateInviteCode() {
+    if (!chapter || !session) return;
+
+    setErrorMessage('');
+    setSavedMessage('');
+    setIsSaving(true);
+
+    try {
+      const maxUses = parseInviteMaxUses(inviteMaxUses);
+      const expiresAt = parseInviteExpiration(inviteExpiresAt);
+      const nextCode: InviteCode = {
+        chapter_id: chapter.id,
+        code: generateReadableInviteCode(),
+        created_at: new Date().toISOString(),
+        created_by: session.user.id,
+        current_uses: 0,
+        expires_at: expiresAt,
+        id: `invite-${Date.now()}`,
+        max_uses: maxUses,
+      };
+
+      if (isDemoMode) {
+        setInviteCodes((current) => [nextCode, ...current]);
+        setSavedMessage('Invite code generated in demo mode.');
+        return;
+      }
+
+      await generateInviteCodeAction(profile, adminState.leaderMemberships, {
+        chapter_id: chapter.id,
+        code: nextCode.code,
+        created_by: session.user.id,
+        expires_at: expiresAt,
+        max_uses: maxUses,
+      });
+
+      setSavedMessage('Invite code generated.');
+      await loadDashboard();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not generate invite code.');
     } finally {
       setIsSaving(false);
     }
@@ -637,9 +756,45 @@ export default function FacilitatorScreen() {
             </AppCard>
 
             <AppCard>
-              <SectionHeader icon={Users} title="Join requests" subtitle="Approve only people who should join your chapter." />
+              <SectionHeader icon={Ticket} title="Invite code generator" subtitle="Create limited-use codes with optional expiration." />
+              <View style={styles.form}>
+                <View style={styles.coordinateRow}>
+                  <View style={styles.coordinateField}>
+                    <FormTextInput
+                      inputMode="numeric"
+                      keyboardType="number-pad"
+                      label="Max uses"
+                      onChangeText={setInviteMaxUses}
+                      placeholder="10"
+                      value={inviteMaxUses}
+                    />
+                  </View>
+                  <View style={styles.coordinateField}>
+                    <FormTextInput
+                      label="Expires on"
+                      onChangeText={setInviteExpiresAt}
+                      placeholder="YYYY-MM-DD"
+                      value={inviteExpiresAt}
+                    />
+                  </View>
+                </View>
+              </View>
+              <View style={styles.cardAction}>
+                <AppPressButton disabled={isSaving} icon={KeyRound} label="Generate invite code" onPress={generateInviteCode} variant="accent" />
+              </View>
+              <View style={styles.inviteList}>
+                {inviteCodes.length === 0 ? (
+                  <EmptyState body="Generated invite codes will appear here." icon={Ticket} title="No invite codes yet" />
+                ) : (
+                  inviteCodes.map((inviteCode) => <InviteCodeCard inviteCode={inviteCode} key={inviteCode.id} />)
+                )}
+              </View>
+            </AppCard>
+
+            <AppCard>
+              <SectionHeader icon={Users} title="Pending approvals" subtitle="Approve invite redemptions and join requests." />
               {joinRequests.length === 0 ? (
-                <EmptyState body="No pending join requests." icon={Users} title="All clear" />
+                <EmptyState body="No pending approvals." icon={Users} title="All clear" />
               ) : (
                 <View style={styles.requestList}>
                   {joinRequests.map((row) => (
@@ -792,6 +947,36 @@ function JoinRequestCard({
         <View style={styles.requestAction}>
           <AppPressButton disabled={disabled} icon={CheckCircle2} label="Approve" onPress={onApprove} variant="accent" />
         </View>
+      </View>
+    </View>
+  );
+}
+
+function InviteCodeCard({ inviteCode }: { inviteCode: InviteCode }) {
+  const theme = useTheme();
+  const isExpired = inviteCode.expires_at ? new Date(inviteCode.expires_at).getTime() <= Date.now() : false;
+  const isSpent = inviteCode.max_uses !== null && inviteCode.current_uses >= inviteCode.max_uses;
+
+  return (
+    <View style={[styles.inviteCard, { backgroundColor: theme.cardMuted, borderColor: theme.border }]}>
+      <View style={styles.requestCopy}>
+        <Text style={[styles.inviteCode, { color: theme.textPrimary }]}>{inviteCode.code}</Text>
+        <Text style={[styles.memberMeta, { color: theme.textSecondary }]}>
+          {inviteCode.current_uses}/{inviteCode.max_uses ?? '∞'} uses
+          {inviteCode.expires_at ? ` · expires ${formatDate(inviteCode.expires_at)}` : ' · no expiration'}
+        </Text>
+      </View>
+      <View
+        style={[
+          styles.flag,
+          {
+            backgroundColor: isExpired || isSpent ? theme.card : theme.accentSurface,
+            borderColor: isExpired || isSpent ? theme.border : theme.accentBorder,
+          },
+        ]}>
+        <Text style={[styles.flagText, { color: isExpired || isSpent ? theme.textMuted : theme.warning }]}>
+          {isExpired ? 'Expired' : isSpent ? 'Limit reached' : 'Active'}
+        </Text>
       </View>
     </View>
   );
@@ -1049,6 +1234,25 @@ const styles = StyleSheet.create({
   requestList: {
     gap: spacing.md,
     marginTop: spacing.lg,
+  },
+  inviteList: {
+    gap: spacing.md,
+    marginTop: spacing.lg,
+  },
+  inviteCard: {
+    alignItems: 'center',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+    justifyContent: 'space-between',
+    padding: spacing.md,
+  },
+  inviteCode: {
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: 1,
   },
   requestCard: {
     borderRadius: radius.lg,

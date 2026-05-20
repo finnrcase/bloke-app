@@ -6,26 +6,43 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "blokeapp",
-    "userInterfaceStyle": "light",
+    "owner": "finnrcase",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "enabled": true,
+      "fallbackToCacheTimeout": 0,
+      "checkAutomatically": "ON_LOAD"
+    },
+    "assetBundlePatterns": [
+      "assets/images/*",
+      "assets/fonts/*",
+      "lib/loadingpage.png"
+    ],
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F4F1EC"
+      "backgroundColor": "#070605"
     },
     "ios": {
       "bundleIdentifier": "org.bloke.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Bloke uses your location to show nearby chapters."
+      },
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#F4F1EC"
+        "backgroundColor": "#070605"
       },
       "edgeToEdgeEnabled": true,
-      "package": "org.bloke.app",
-      "permissions": [],
-      "predictiveBackGestureEnabled": false
+      "package": "com.bloke.app",
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro",
@@ -34,10 +51,36 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-updates",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Bloke uses your location to show nearby chapters."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "minSdkVersion": 24,
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "usesCleartextTraffic": false
+          }
+        }
+      ]
     ],
     "extra": {
-      "privacyPolicyUrl": "https://example.com/privacy"
+      "privacyPolicyUrl": "https://bloke.app/privacy",
+      "termsUrl": "https://bloke.app/terms",
+      "supportUrl": "https://bloke.app/support",
+      "EXPO_PUBLIC_DEMO_MODE": "",
+      "EXPO_PUBLIC_MAPBOX_TOKEN": "",
+      "EXPO_PUBLIC_SUPABASE_ANON_KEY": "",
+      "EXPO_PUBLIC_SUPABASE_URL": ""
     },
     "experiments": {
       "typedRoutes": true

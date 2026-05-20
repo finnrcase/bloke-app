@@ -1,73 +1,73 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { Award, CheckCircle2, Lock, Trophy } from 'lucide-react-native';
+import { Award, CheckCircle2, Dumbbell, Flame, Plus, Repeat2, Trophy } from 'lucide-react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { AppCard } from '@/components/AppCard';
+import { AppButton } from '@/components/AppButton';
 import { AppPressButton } from '@/components/AppPressButton';
 import { AppScreen } from '@/components/AppScreen';
+import { LeaderboardCard, LeaderboardEntry } from '@/components/progress/LeaderboardCard';
+import { StreakSummary } from '@/components/progress/StreakSummary';
 import { BadgeCard } from '@/components/ui/BadgeCard';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { GlassCard } from '@/components/ui/GlassCard';
-import { GradientCard } from '@/components/ui/GradientCard';
 import { HeroSection } from '@/components/ui/HeroSection';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { SectionHeader } from '@/components/ui/SectionHeader';
-import { radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { usePreferences } from '@/context/PreferencesContext';
 import { useTheme } from '@/hooks/useTheme';
-import { demoProgress, demoUserBadges } from '@/lib/demoData';
+import {
+  getAccountabilityStreak,
+  getAverageConsistency,
+  getWeekStart,
+  WeeklyCheckIn,
+} from '@/lib/accountability';
+import { demoMemberProfiles, demoUserBadges, demoUserId } from '@/lib/demoData';
 import { supabase } from '@/lib/supabase';
 import { Database } from '@/types/database';
 
-type WeeklyProgress = Database['public']['Tables']['weekly_progress']['Row'];
 type UserBadge = Database['public']['Tables']['user_badges']['Row'];
+type Profile = Database['public']['Tables']['profiles']['Row'];
 
 type ProgressState = {
   badges: UserBadge[];
-  progressRows: WeeklyProgress[];
+  checkIns: WeeklyCheckIn[];
+  leaderboard: LeaderboardEntry[];
 };
 
-const badgeLabels = ['Consistency', 'Integrity', 'Discipline', 'Brotherhood', 'Leadership', 'Builder'];
-
-function isWeekComplete(progress: WeeklyProgress) {
-  return Boolean(progress.learn_complete && progress.act_complete && progress.log_complete);
-}
-
-function getCurrentWeek(progressRows: WeeklyProgress[]) {
-  const completedWeeks = new Set(progressRows.filter(isWeekComplete).map((progress) => progress.week_number));
-  let week = 1;
-
-  while (completedWeeks.has(week)) {
-    week += 1;
-  }
-
-  return week;
-}
-
-function getStreak(progressRows: WeeklyProgress[]) {
-  const completedWeeks = progressRows
-    .filter(isWeekComplete)
-    .map((progress) => progress.week_number)
-    .filter((week): week is number => typeof week === 'number');
-  const completedSet = new Set(completedWeeks);
-  let streak = 0;
-
-  for (let week = Math.max(0, ...completedWeeks); week > 0; week -= 1) {
-    if (!completedSet.has(week)) break;
-    streak += 1;
-  }
-
-  return streak;
-}
-
-function formatDate(value: string | null) {
-  if (!value) {
-    return 'No submission yet';
-  }
-
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value));
-}
+const demoCheckIns: WeeklyCheckIn[] = [
+  {
+    consistency_score: 86,
+    created_at: new Date().toISOString(),
+    habit_completed: 6,
+    habit_name: 'No phone after 10',
+    habit_target: 7,
+    id: 'demo-checkin-current',
+    profile_id: demoUserId,
+    reflection: 'Sleep improved. Keep Sunday clean.',
+    submitted_at: new Date().toISOString(),
+    week_start: getWeekStart(),
+    weekly_goal: 'Train three times and keep evenings clean.',
+    workout_completed: 3,
+    workout_target: 3,
+  },
+  {
+    consistency_score: 78,
+    created_at: new Date().toISOString(),
+    habit_completed: 5,
+    habit_name: 'Morning walk',
+    habit_target: 7,
+    id: 'demo-checkin-last',
+    profile_id: demoUserId,
+    reflection: 'Good week. Missed two habit days.',
+    submitted_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
+    week_start: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString().slice(0, 10),
+    weekly_goal: 'Show up before excuses.',
+    workout_completed: 3,
+    workout_target: 4,
+  },
+];
 
 export default function ProgressScreen() {
   const { isDemoMode, session } = useAuth();
@@ -77,25 +77,24 @@ export default function ProgressScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [state, setState] = useState<ProgressState>({
     badges: [],
-    progressRows: [],
+    checkIns: [],
+    leaderboard: [],
   });
 
-  const completedRows = useMemo(() => state.progressRows.filter(isWeekComplete), [state.progressRows]);
-  const journeyProgress = Math.min(completedRows.length / 10, 1);
-  const latestSubmittedAt = useMemo(
-    () =>
-      state.progressRows
-        .map((progress) => progress.submitted_at)
-        .filter((value): value is string => Boolean(value))
-        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null,
-    [state.progressRows],
+  const currentCheckIn = useMemo(
+    () => state.checkIns.find((checkIn) => checkIn.week_start === getWeekStart()) ?? null,
+    [state.checkIns],
   );
+  const submittedWeeks = state.checkIns.filter((checkIn) => Boolean(checkIn.submitted_at)).length;
+  const streak = getAccountabilityStreak(state.checkIns);
+  const consistency = getAverageConsistency(state.checkIns);
 
   const loadProgress = useCallback(async () => {
     if (isDemoMode && session) {
       setState({
         badges: demoUserBadges,
-        progressRows: demoProgress,
+        checkIns: demoCheckIns,
+        leaderboard: buildDemoLeaderboard(),
       });
       setErrorMessage('');
       setIsLoading(false);
@@ -111,12 +110,12 @@ export default function ProgressScreen() {
     setIsLoading(true);
 
     try {
-      const [progressResult, badgesResult] = await Promise.all([
+      const [checkInsResult, badgesResult] = await Promise.all([
         supabase
-          .from('weekly_progress')
+          .from('weekly_checkins')
           .select('*')
           .eq('profile_id', session.user.id)
-          .order('week_number', { ascending: true }),
+          .order('week_start', { ascending: false }),
         supabase
           .from('user_badges')
           .select('*')
@@ -124,15 +123,18 @@ export default function ProgressScreen() {
           .order('earned_at', { ascending: false }),
       ]);
 
-      if (progressResult.error) throw progressResult.error;
+      if (checkInsResult.error) throw checkInsResult.error;
       if (badgesResult.error) throw badgesResult.error;
+
+      const leaderboard = await loadLeaderboard(session.user.id);
 
       setState({
         badges: badgesResult.data ?? [],
-        progressRows: progressResult.data ?? [],
+        checkIns: checkInsResult.data ?? [],
+        leaderboard,
       });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not load progress.');
+      setErrorMessage(error instanceof Error ? error.message : 'Could not load accountability progress.');
     } finally {
       setIsLoading(false);
     }
@@ -145,9 +147,9 @@ export default function ProgressScreen() {
   return (
     <AppScreen contentStyle={styles.screenContent}>
       <HeroSection
-        eyebrow="Becoming visible"
+        eyebrow="Retention loop"
         icon={Trophy}
-        subtitle="Status here is earned through steady, honest work."
+        subtitle="Goals, workouts, habits, and chapter consistency in one place."
         title={t('progress')}
       />
 
@@ -155,7 +157,7 @@ export default function ProgressScreen() {
         <AppCard>
           <View style={styles.loadingRow}>
             <ActivityIndicator color={theme.accent} />
-            <Text style={[styles.loadingText, { color: theme.textSecondary }]}>{t('loadingProgress')}</Text>
+            <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading accountability...</Text>
           </View>
         </AppCard>
       ) : null}
@@ -171,60 +173,46 @@ export default function ProgressScreen() {
 
       {!isLoading && !errorMessage ? (
         <>
-          <GradientCard glow style={styles.journeyCard} variant="olive">
-            <Text style={[styles.darkEyebrow, { color: theme.accent }]}>Journey progress</Text>
-            <Text style={[styles.darkTitle, { color: theme.textInverse }]}>{completedRows.length} weeks complete</Text>
-            <ProgressBar label="Weeks 1-10" tone="inverse" value={journeyProgress} />
-          </GradientCard>
+          <StreakSummary
+            consistency={consistency}
+            goal={currentCheckIn?.weekly_goal ?? ''}
+            streak={streak}
+            submittedWeeks={submittedWeeks}
+          />
+
+          <View style={styles.cardAction}>
+            <AppButton href="/check-in" icon={Plus} label="Weekly Check-In" variant="accent" />
+          </View>
 
           <View style={styles.metricsGrid}>
-            <Metric label="Current week" value={`${getCurrentWeek(state.progressRows)}`} />
-            <Metric label="Completed weeks" value={`${completedRows.length}`} />
-            <Metric label="Weekly streak" value={`${getStreak(state.progressRows)}`} />
-            <Metric label="Badges earned" value={`${state.badges.length}`} />
+            <Metric icon={Flame} label="Streak" value={`${streak}`} />
+            <Metric icon={Dumbbell} label="Workouts" value={`${currentCheckIn?.workout_completed ?? 0}/${currentCheckIn?.workout_target ?? 3}`} />
+            <Metric icon={Repeat2} label="Habit" value={`${currentCheckIn?.habit_completed ?? 0}/${currentCheckIn?.habit_target ?? 7}`} />
+            <Metric icon={CheckCircle2} label="Consistency" value={`${consistency}%`} />
           </View>
 
           <GlassCard>
-            <SectionHeader icon={Trophy} title="Latest submission" />
-            <Text style={[styles.body, { color: theme.textSecondary }]}>{formatDate(latestSubmittedAt)}</Text>
+            <SectionHeader icon={Award} title="This week’s loop" subtitle="Keep the next action obvious." />
+            <Text style={[styles.body, { color: theme.textSecondary }]}>
+              {currentCheckIn
+                ? `${currentCheckIn.weekly_goal} Habit: ${currentCheckIn.habit_name}.`
+                : 'Submit a weekly check-in to set your goal, track training, and start your streak.'}
+            </Text>
+            <ProgressBar label="Weekly consistency" value={consistency / 100} />
           </GlassCard>
 
-          {state.progressRows.length === 0 ? (
-            <AppCard>
-              <EmptyState
-                body="Start Week 1 in Curriculum. Mark Learn, Act, and Log to build your first streak."
-                icon={Award}
-                title="No progress yet."
-              />
-            </AppCard>
-          ) : (
-            <GlassCard>
-              <SectionHeader icon={CheckCircle2} title="Milestone timeline" />
-              <View style={styles.weekList}>
-                {state.progressRows.map((progress) => (
-                  <View
-                    key={progress.id}
-                    style={[styles.weekRow, { backgroundColor: theme.cardMuted, borderColor: theme.border }]}>
-                    <Text style={[styles.weekTitle, { color: theme.textPrimary }]}>Week {progress.week_number}</Text>
-                    <Text style={[styles.weekStatus, { color: theme.textSecondary }]}>
-                      {isWeekComplete(progress) ? 'Complete' : 'In progress'}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </GlassCard>
-          )}
+          <LeaderboardCard entries={state.leaderboard} />
 
           <GlassCard>
-            <SectionHeader icon={Award} title="Badges" subtitle="Earned badges stay bold. Locked badges stay quiet." />
+            <SectionHeader icon={Award} title="Badges" subtitle="Streaks and consistency unlock identity markers." />
             <View style={styles.badgeGrid}>
-              {badgeLabels.map((label, index) => (
+              {['Consistency', 'Integrity', 'Discipline', 'Brotherhood'].map((label, index) => (
                 <BadgeCard
+                  icon={index < state.badges.length ? Award : Trophy}
                   key={label}
-                  icon={index < state.badges.length ? Award : Lock}
+                  locked={index >= state.badges.length}
                   subtitle={index < state.badges.length ? 'Earned' : 'Locked'}
                   title={label}
-                  locked={index >= state.badges.length}
                 />
               ))}
             </View>
@@ -235,11 +223,82 @@ export default function ProgressScreen() {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+async function loadLeaderboard(userId: string): Promise<LeaderboardEntry[]> {
+  if (!supabase) return [];
+
+  const membershipResult = await supabase
+    .from('chapter_members')
+    .select('*')
+    .eq('profile_id', userId)
+    .eq('status', 'active')
+    .limit(1);
+
+  if (membershipResult.error || !membershipResult.data?.[0]?.chapter_id) return [];
+
+  const membersResult = await supabase
+    .from('chapter_members')
+    .select('*')
+    .eq('chapter_id', membershipResult.data[0].chapter_id)
+    .eq('status', 'active');
+
+  if (membersResult.error) return [];
+
+  const profileIds = (membersResult.data ?? [])
+    .map((member) => member.profile_id)
+    .filter((id): id is string => Boolean(id));
+
+  if (profileIds.length === 0) return [];
+
+  const [profilesResult, checkInsResult] = await Promise.all([
+    supabase.from('profiles').select('*').in('id', profileIds),
+    supabase.from('weekly_checkins').select('*').in('profile_id', profileIds),
+  ]);
+
+  if (profilesResult.error || checkInsResult.error) return [];
+
+  return buildLeaderboard(profilesResult.data ?? [], checkInsResult.data ?? []);
+}
+
+function buildDemoLeaderboard() {
+  return [
+    { consistency: 91, name: 'Marcus Reed', profileId: 'demo-2', rank: 1, streak: 4, submittedWeeks: 4 },
+    { consistency: 86, name: 'Demo Leader', profileId: demoUserId, rank: 2, streak: 2, submittedWeeks: 2 },
+    { consistency: 74, name: 'James Carter', profileId: 'demo-3', rank: 3, streak: 1, submittedWeeks: 3 },
+  ];
+}
+
+function buildLeaderboard(profiles: Profile[], checkIns: WeeklyCheckIn[]) {
+  return profiles
+    .map((profile) => {
+      const rows = checkIns.filter((checkIn) => checkIn.profile_id === profile.id);
+      return {
+        consistency: getAverageConsistency(rows),
+        name: profile.full_name ?? profile.username ?? 'Unnamed member',
+        profileId: profile.id,
+        rank: 0,
+        streak: getAccountabilityStreak(rows),
+        submittedWeeks: rows.filter((row) => Boolean(row.submitted_at)).length,
+      };
+    })
+    .filter((entry) => entry.submittedWeeks > 0)
+    .sort((a, b) => b.consistency - a.consistency || b.streak - a.streak)
+    .map((entry, index) => ({ ...entry, rank: index + 1 }));
+}
+
+function Metric({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Flame;
+  label: string;
+  value: string;
+}) {
   const theme = useTheme();
 
   return (
     <View style={[styles.metricCard, { backgroundColor: theme.glass, borderColor: theme.border }]}>
+      <Icon color={theme.accent} size={22} strokeWidth={2.7} />
       <Text style={[styles.metricLabel, { color: theme.textMuted }]}>{label}</Text>
       <Text style={[styles.metricValue, { color: theme.textPrimary }]}>{value}</Text>
     </View>
@@ -249,18 +308,6 @@ function Metric({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   screenContent: {
     justifyContent: 'flex-start',
-  },
-  header: {
-    gap: spacing.sm,
-  },
-  heading: {
-    fontSize: typography.hero,
-    fontWeight: '900',
-    lineHeight: 54,
-  },
-  subheading: {
-    fontSize: 18,
-    fontWeight: '800',
   },
   loadingRow: {
     alignItems: 'center',
@@ -276,19 +323,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.md,
   },
-  journeyCard: {
-    gap: spacing.lg,
-  },
-  darkEyebrow: {
-    fontSize: 14,
-    fontWeight: '900',
-    textTransform: 'uppercase',
-  },
-  darkTitle: {
-    fontSize: 36,
-    fontWeight: '900',
-    lineHeight: 42,
-  },
   metricCard: {
     borderRadius: radius.xl,
     borderWidth: 1,
@@ -298,41 +332,19 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   metricLabel: {
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '900',
     textTransform: 'uppercase',
   },
   metricValue: {
-    fontSize: 30,
-    fontWeight: '900',
-    lineHeight: 36,
-  },
-  sectionTitle: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '900',
   },
   body: {
-    fontSize: 19,
-    lineHeight: 29,
-    marginTop: spacing.md,
-  },
-  weekList: {
-    gap: spacing.md,
-    marginTop: spacing.lg,
-  },
-  weekRow: {
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    gap: spacing.xs,
-    padding: spacing.md,
-  },
-  weekTitle: {
-    fontSize: 19,
-    fontWeight: '900',
-  },
-  weekStatus: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800',
+    lineHeight: 25,
+    marginTop: spacing.md,
   },
   badgeGrid: {
     flexDirection: 'row',
@@ -341,7 +353,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   cardAction: {
-    marginTop: spacing.xl,
+    marginTop: spacing.sm,
   },
   error: {
     fontSize: 17,

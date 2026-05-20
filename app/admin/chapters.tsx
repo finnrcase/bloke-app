@@ -13,9 +13,11 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { HeroSection } from '@/components/ui/HeroSection';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { radius, spacing } from '@/constants/theme';
+import { useAdminState } from '@/context/AdminContext';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/hooks/useTheme';
 import { demoChapter, demoChapterMembers, demoMemberProfiles } from '@/lib/demoData';
+import { createChapterAction, editChapterAction, generateInviteCodeAction } from '@/lib/supabase/protectedActions';
 import { supabase } from '@/lib/supabase';
 import { Database } from '@/types/database';
 
@@ -80,6 +82,7 @@ function parseOptionalCoordinate(value: string, label: string) {
 
 export default function AdminChaptersScreen() {
   const { isDemoMode, profile, session } = useAuth();
+  const adminState = useAdminState();
   const theme = useTheme();
   const { width } = useWindowDimensions();
   const isWide = width >= 860;
@@ -100,7 +103,7 @@ export default function AdminChaptersScreen() {
   const [region, setRegion] = useState('');
   const [savedMessage, setSavedMessage] = useState('');
 
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = adminState.canCreateChapter();
   const existingCodes = useMemo(
     () => new Set(chapters.map((row) => row.chapter.invite_code)),
     [chapters],
@@ -205,21 +208,27 @@ export default function AdminChaptersScreen() {
 
       if (isDemoMode) {
         const demoCreatedChapter: Chapter = {
+          city: region.trim(),
           country: country.trim(),
           created_at: new Date().toISOString(),
+          created_by: session?.user.id ?? null,
           description: description.trim() || null,
           facilitator_id: null,
           id: `demo-chapter-${Date.now()}`,
           invite_code: inviteCode,
           is_public: isPublic,
+          is_verified: false,
           join_policy: joinPolicy,
           latitude: nextLatitude,
           longitude: nextLongitude,
+          member_count: 0,
           meeting_day: meetingDay.trim() || null,
           meeting_location: meetingLocation.trim() || null,
           name: name.trim(),
           public_join_enabled: joinPolicy === 'open',
           region: region.trim(),
+          slug: name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+          state: null,
         };
 
         setChapters((current) => [
@@ -242,28 +251,33 @@ export default function AdminChaptersScreen() {
           inviteCode = generateInviteCode(attemptedCodes);
           attemptedCodes.add(inviteCode);
 
-          const { error } = await supabase.from('chapters').insert({
-            country: country.trim(),
-            description: description.trim() || null,
-            invite_code: inviteCode,
-            is_public: isPublic,
-            join_policy: joinPolicy,
-            latitude: nextLatitude,
-            longitude: nextLongitude,
-            meeting_day: meetingDay.trim() || null,
-            meeting_location: meetingLocation.trim() || null,
-            name: name.trim(),
-            public_join_enabled: joinPolicy === 'open',
-            region: region.trim(),
-          });
+          try {
+            const createdChapter = await createChapterAction(profile, {
+              country: country.trim(),
+              created_by: session?.user.id ?? null,
+              description: description.trim() || null,
+              invite_code: inviteCode,
+              is_public: isPublic,
+              join_policy: joinPolicy,
+              latitude: nextLatitude,
+              longitude: nextLongitude,
+              meeting_day: meetingDay.trim() || null,
+              meeting_location: meetingLocation.trim() || null,
+              name: name.trim(),
+              public_join_enabled: joinPolicy === 'open',
+              region: region.trim(),
+            });
 
-          if (!error) {
+            await generateInviteCodeAction(profile, adminState.leaderMemberships, {
+              chapter_id: createdChapter.id,
+              code: inviteCode,
+              created_by: session?.user.id ?? null,
+            });
+
             created = true;
             break;
-          }
-
-          if (error.code !== '23505') {
-            throw error;
+          } catch (error) {
+            if (!(error && typeof error === 'object' && 'code' in error && error.code === '23505')) throw error;
           }
         }
 
@@ -339,9 +353,7 @@ export default function AdminChaptersScreen() {
           throw new Error('Supabase is not configured. Add your Expo public Supabase env vars.');
         }
 
-        const { error } = await supabase.from('chapters').update(updates).eq('id', chapterId);
-
-        if (error) throw error;
+        await editChapterAction(profile, adminState.leaderMemberships, chapterId, updates);
         await loadChapters();
       }
 
@@ -354,7 +366,7 @@ export default function AdminChaptersScreen() {
   }
 
   return (
-    <RouteGuard mode="protected">
+    <RouteGuard mode="protected" permission="admin">
       <AppScreen contentStyle={styles.screenContent} innerStyle={isWide ? styles.wideInner : null}>
         <HeroSection
           eyebrow="Admin"

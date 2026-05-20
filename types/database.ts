@@ -6,39 +6,51 @@ export type Database = {
       profiles: {
         Row: {
           age: number | null;
+          avatar_url: string | null;
+          bio: string | null;
           country: string | null;
           created_at: string | null;
           full_name: string | null;
+          home_chapter_id: string | null;
           id: string;
           appearance: 'dark' | 'light' | 'system' | null;
           language: string | null;
           onboarding_complete: boolean | null;
           personal_goal: string | null;
-          role: 'participant' | 'facilitator' | 'admin' | null;
+          role: 'user' | 'chapter_member' | 'chapter_leader' | 'global_admin' | 'participant' | 'facilitator' | 'admin' | null;
+          username: string | null;
         };
         Insert: {
           age?: number | null;
+          avatar_url?: string | null;
+          bio?: string | null;
           country?: string | null;
           created_at?: string | null;
           full_name?: string | null;
+          home_chapter_id?: string | null;
           id: string;
           appearance?: 'dark' | 'light' | 'system' | null;
           language?: string | null;
           onboarding_complete?: boolean | null;
           personal_goal?: string | null;
-          role?: 'participant' | 'facilitator' | 'admin' | null;
+          role?: 'user' | 'chapter_member' | 'chapter_leader' | 'global_admin' | 'participant' | 'facilitator' | 'admin' | null;
+          username?: string | null;
         };
         Update: {
           age?: number | null;
+          avatar_url?: string | null;
+          bio?: string | null;
           country?: string | null;
           created_at?: string | null;
           full_name?: string | null;
+          home_chapter_id?: string | null;
           id?: string;
           appearance?: 'dark' | 'light' | 'system' | null;
           language?: string | null;
           onboarding_complete?: boolean | null;
           personal_goal?: string | null;
-          role?: 'participant' | 'facilitator' | 'admin' | null;
+          role?: 'user' | 'chapter_member' | 'chapter_leader' | 'global_admin' | 'participant' | 'facilitator' | 'admin' | null;
+          username?: string | null;
         };
         Relationships: [];
       };
@@ -111,81 +123,153 @@ export type Database = {
         };
         Relationships: [];
       };
+      weekly_checkins: {
+        Row: {
+          consistency_score: number;
+          created_at: string | null;
+          habit_completed: number;
+          habit_name: string;
+          habit_target: number;
+          id: string;
+          profile_id: string;
+          reflection: string | null;
+          submitted_at: string | null;
+          week_start: string;
+          weekly_goal: string;
+          workout_completed: number;
+          workout_target: number;
+        };
+        Insert: {
+          consistency_score?: number;
+          created_at?: string | null;
+          habit_completed?: number;
+          habit_name: string;
+          habit_target?: number;
+          id?: string;
+          profile_id: string;
+          reflection?: string | null;
+          submitted_at?: string | null;
+          week_start: string;
+          weekly_goal: string;
+          workout_completed?: number;
+          workout_target?: number;
+        };
+        Update: {
+          consistency_score?: number;
+          created_at?: string | null;
+          habit_completed?: number;
+          habit_name?: string;
+          habit_target?: number;
+          id?: string;
+          profile_id?: string;
+          reflection?: string | null;
+          submitted_at?: string | null;
+          week_start?: string;
+          weekly_goal?: string;
+          workout_completed?: number;
+          workout_target?: number;
+        };
+        Relationships: [];
+      };
       chapter_members: {
         Row: {
           chapter_id: string | null;
           id: string;
           joined_at: string | null;
           profile_id: string | null;
-          role: 'member' | 'facilitator' | null;
+          role: 'chapter_member' | 'chapter_leader' | 'member' | 'facilitator' | null;
+          status: 'pending' | 'active' | 'rejected' | 'removed';
+          user_id: string | null;
         };
         Insert: {
           chapter_id?: string | null;
           id?: string;
           joined_at?: string | null;
           profile_id?: string | null;
-          role?: 'member' | 'facilitator' | null;
+          role?: 'chapter_member' | 'chapter_leader' | 'member' | 'facilitator' | null;
+          status?: 'pending' | 'active' | 'rejected' | 'removed';
+          user_id?: string | null;
         };
         Update: {
           chapter_id?: string | null;
           id?: string;
           joined_at?: string | null;
           profile_id?: string | null;
-          role?: 'member' | 'facilitator' | null;
+          role?: 'chapter_member' | 'chapter_leader' | 'member' | 'facilitator' | null;
+          status?: 'pending' | 'active' | 'rejected' | 'removed';
+          user_id?: string | null;
         };
         Relationships: [];
       };
       chapters: {
         Row: {
+          city: string | null;
           country: string | null;
           created_at: string | null;
+          created_by: string | null;
           facilitator_id: string | null;
           id: string;
           invite_code: string;
+          is_verified: boolean;
           latitude: number | null;
           longitude: number | null;
           description: string | null;
           is_public: boolean | null;
           join_policy: 'invite_code' | 'request' | 'open' | null;
+          member_count: number;
           meeting_day: string | null;
           meeting_location: string | null;
           name: string;
           public_join_enabled: boolean | null;
           region: string | null;
+          slug: string;
+          state: string | null;
         };
         Insert: {
+          city?: string | null;
           country?: string | null;
           created_at?: string | null;
+          created_by?: string | null;
           facilitator_id?: string | null;
           id?: string;
           invite_code: string;
+          is_verified?: boolean;
           latitude?: number | null;
           longitude?: number | null;
           description?: string | null;
           is_public?: boolean | null;
           join_policy?: 'invite_code' | 'request' | 'open' | null;
+          member_count?: number;
           meeting_day?: string | null;
           meeting_location?: string | null;
           name: string;
           public_join_enabled?: boolean | null;
           region?: string | null;
+          slug?: string;
+          state?: string | null;
         };
         Update: {
+          city?: string | null;
           country?: string | null;
           created_at?: string | null;
+          created_by?: string | null;
           facilitator_id?: string | null;
           id?: string;
           invite_code?: string;
+          is_verified?: boolean;
           latitude?: number | null;
           longitude?: number | null;
           description?: string | null;
           is_public?: boolean | null;
           join_policy?: 'invite_code' | 'request' | 'open' | null;
+          member_count?: number;
           meeting_day?: string | null;
           meeting_location?: string | null;
           name?: string;
           public_join_enabled?: boolean | null;
           region?: string | null;
+          slug?: string;
+          state?: string | null;
         };
         Relationships: [];
       };
@@ -300,6 +384,72 @@ export type Database = {
           reviewed_at?: string | null;
           reviewed_by?: string | null;
           status?: 'pending' | 'approved' | 'rejected';
+        };
+        Relationships: [];
+      };
+      invite_codes: {
+        Row: {
+          chapter_id: string;
+          code: string;
+          created_at: string | null;
+          created_by: string | null;
+          current_uses: number;
+          expires_at: string | null;
+          id: string;
+          max_uses: number | null;
+        };
+        Insert: {
+          chapter_id: string;
+          code: string;
+          created_at?: string | null;
+          created_by?: string | null;
+          current_uses?: number;
+          expires_at?: string | null;
+          id?: string;
+          max_uses?: number | null;
+        };
+        Update: {
+          chapter_id?: string;
+          code?: string;
+          created_at?: string | null;
+          created_by?: string | null;
+          current_uses?: number;
+          expires_at?: string | null;
+          id?: string;
+          max_uses?: number | null;
+        };
+        Relationships: [];
+      };
+      chapter_events: {
+        Row: {
+          chapter_id: string;
+          created_at: string | null;
+          created_by: string | null;
+          description: string | null;
+          event_date: string;
+          id: string;
+          location: string | null;
+          title: string;
+        };
+        Insert: {
+          chapter_id: string;
+          created_at?: string | null;
+          created_by?: string | null;
+          description?: string | null;
+          event_date: string;
+          id?: string;
+          location?: string | null;
+          title: string;
+        };
+        Update: {
+          chapter_id?: string;
+          created_at?: string | null;
+          created_by?: string | null;
+          description?: string | null;
+          event_date?: string;
+          id?: string;
+          location?: string | null;
+          title?: string;
         };
         Relationships: [];
       };
@@ -444,6 +594,12 @@ export type Database = {
         Args: {
           target_chapter_id: string;
           request_message?: string | null;
+        };
+        Returns: string;
+      };
+      redeem_invite_code: {
+        Args: {
+          target_invite_code: string;
         };
         Returns: string;
       };

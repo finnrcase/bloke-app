@@ -6,18 +6,23 @@ import { AppCard } from '@/components/AppCard';
 import { AppScreen } from '@/components/AppScreen';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { spacing } from '@/constants/theme';
+import { useAdminState } from '@/context/AdminContext';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/hooks/useTheme';
+import { canCreateChapter, canManageChapter } from '@/lib/permissions';
 
 type RouteGuardProps = PropsWithChildren<{
   mode: 'public' | 'onboarding' | 'protected';
+  permission?: 'admin' | 'chapterLeader' | 'manageChapter';
+  chapterId?: string | null;
 }>;
 
-export function RouteGuard({ children, mode }: RouteGuardProps) {
-  const { authError, isLoading, isProfileComplete, session } = useAuth();
+export function RouteGuard({ children, chapterId, mode, permission }: RouteGuardProps) {
+  const { authError, isLoading, isProfileComplete, profile, session } = useAuth();
+  const adminState = useAdminState();
   const theme = useTheme();
 
-  if (isLoading) {
+  if (isLoading || adminState.isLoading) {
     return <LoadingScreen />;
   }
 
@@ -66,7 +71,32 @@ export function RouteGuard({ children, mode }: RouteGuardProps) {
     return <Redirect href="/onboarding" />;
   }
 
+  if (permission === 'admin' && !canCreateChapter(profile)) {
+    return <Unauthorized message="Only global admins can open this screen." />;
+  }
+
+  if (permission === 'chapterLeader' && !adminState.isChapterLeader(chapterId)) {
+    return <Unauthorized message="Only chapter leaders can open this screen." />;
+  }
+
+  if (permission === 'manageChapter' && !canManageChapter(profile, adminState.leaderMemberships, chapterId)) {
+    return <Unauthorized message="You do not have permission to manage this chapter." />;
+  }
+
   return children;
+}
+
+function Unauthorized({ message }: { message: string }) {
+  const theme = useTheme();
+
+  return (
+    <AppScreen>
+      <AppCard>
+        <Text style={[styles.errorTitle, { color: theme.textPrimary }]}>Unauthorized</Text>
+        <Text style={[styles.errorBody, { color: theme.textSecondary }]}>{message}</Text>
+      </AppCard>
+    </AppScreen>
+  );
 }
 
 const styles = StyleSheet.create({

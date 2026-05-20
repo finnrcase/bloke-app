@@ -266,24 +266,32 @@ export function ChapterDiscovery({
           id: `demo-membership-${Date.now()}`,
           joined_at: new Date().toISOString(),
           profile_id: session.user.id,
-          role: 'member',
+          role: 'chapter_member',
+          status: 'active',
+          user_id: session.user.id,
         });
         setLocalChapter({
+          city: joinAction.chapter.region,
           country: joinAction.chapter.country,
           created_at: new Date().toISOString(),
+          created_by: null,
           description: joinAction.chapter.description,
           facilitator_id: null,
           id: joinAction.chapter.id,
           invite_code: inviteCode.trim() || 'BLOKE-DEMO',
           is_public: joinAction.chapter.is_public,
+          is_verified: false,
           join_policy: joinAction.chapter.join_policy,
           latitude: joinAction.chapter.latitude,
           longitude: joinAction.chapter.longitude,
+          member_count: joinAction.chapter.member_count,
           meeting_day: joinAction.chapter.meeting_day,
           meeting_location: joinAction.chapter.meeting_location,
           name: joinAction.chapter.name,
           public_join_enabled: joinAction.chapter.public_join_enabled,
           region: joinAction.chapter.region,
+          slug: joinAction.chapter.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+          state: null,
         });
         closeJoinAction();
         setSelectedChapter(joinAction.chapter);
@@ -309,14 +317,15 @@ export function ChapterDiscovery({
       }
 
       if (joinAction.type === 'invite') {
-        const { error } = await supabase.rpc('join_chapter_by_invite_code', {
+        const { error } = await supabase.rpc('redeem_invite_code', {
           target_invite_code: inviteCode.trim(),
         });
 
         if (error) throw error;
         closeJoinAction();
         setSelectedChapter(joinAction.chapter);
-        await afterMembershipChange('Chapter joined.');
+        await loadDiscovery();
+        setSavedMessage('Invite redeemed. Your request is pending approval.');
         return;
       }
 

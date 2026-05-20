@@ -39,15 +39,19 @@ export const demoSession: Session = {
 
 export const demoProfile: Profile = {
   age: 21,
+  avatar_url: null,
+  bio: 'Demo profile for local walkthroughs.',
   country: 'United States',
   created_at: now,
   full_name: 'Demo Leader',
+  home_chapter_id: demoChapterId,
   id: demoUserId,
   appearance: 'dark',
   language: 'en',
   onboarding_complete: true,
   personal_goal: 'Build discipline and help the group stay consistent.',
-  role: 'admin',
+  role: 'global_admin',
+  username: 'demo_leader',
 };
 
 const promptSet = [
@@ -166,21 +170,27 @@ export const demoProgress: WeeklyProgress[] = [
 ];
 
 export const demoChapter: Chapter = {
+  city: 'Santa Barbara',
   country: 'United States',
   created_at: now,
+  created_by: demoUserId,
   description: 'A coastal chapter focused on discipline, honest accountability, and steady weekly action.',
   facilitator_id: demoUserId,
   id: demoChapterId,
   invite_code: 'BLOKE-SBCA',
   is_public: true,
+  is_verified: true,
   join_policy: 'open',
   latitude: 34.4208,
   longitude: -119.6982,
+  member_count: 3,
   meeting_day: 'Tuesday',
   meeting_location: 'Downtown community room',
   name: 'Santa Barbara Builders',
   public_join_enabled: true,
   region: 'Santa Barbara, CA',
+  slug: 'santa-barbara-builders',
+  state: 'CA',
 };
 
 export const demoDirectoryChapters: DirectoryChapter[] = [
@@ -280,21 +290,27 @@ export const demoChapterMembers: ChapterMember[] = [
     id: '00000000-0000-4000-8000-000000000401',
     joined_at: now,
     profile_id: demoUserId,
-    role: 'facilitator',
+    role: 'chapter_leader',
+    status: 'active',
+    user_id: demoUserId,
   },
   {
     chapter_id: demoChapterId,
     id: '00000000-0000-4000-8000-000000000402',
     joined_at: now,
     profile_id: '00000000-0000-4000-8000-000000000002',
-    role: 'member',
+    role: 'chapter_member',
+    status: 'active',
+    user_id: '00000000-0000-4000-8000-000000000002',
   },
   {
     chapter_id: demoChapterId,
     id: '00000000-0000-4000-8000-000000000403',
     joined_at: now,
     profile_id: '00000000-0000-4000-8000-000000000003',
-    role: 'member',
+    role: 'chapter_member',
+    status: 'active',
+    user_id: '00000000-0000-4000-8000-000000000003',
   },
 ];
 
@@ -306,7 +322,8 @@ export const demoMemberProfiles: Profile[] = [
     full_name: 'Marcus Reed',
     id: '00000000-0000-4000-8000-000000000002',
     personal_goal: 'Be reliable at work and home.',
-    role: 'participant',
+    role: 'user',
+    username: 'marcus_reed',
   },
   {
     ...demoProfile,
@@ -314,7 +331,8 @@ export const demoMemberProfiles: Profile[] = [
     full_name: 'James Carter',
     id: '00000000-0000-4000-8000-000000000003',
     personal_goal: 'Finish what I start.',
-    role: 'participant',
+    role: 'user',
+    username: 'james_carter',
   },
   {
     ...demoProfile,
@@ -322,7 +340,8 @@ export const demoMemberProfiles: Profile[] = [
     full_name: 'Andre Santos',
     id: '00000000-0000-4000-8000-000000000004',
     personal_goal: 'Find a consistent group and stay accountable.',
-    role: 'participant',
+    role: 'user',
+    username: 'andre_santos',
   },
 ];
 

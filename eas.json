@@ -1,20 +1,63 @@
 {
   "cli": {
+    "appVersionSource": "remote",
     "version": ">= 10.0.0"
   },
   "build": {
     "development": {
+      "android": {
+        "buildType": "apk"
+      },
+      "channel": "development",
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_DEMO_MODE": "true"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "android": {
+        "buildType": "apk"
+      },
+      "channel": "preview",
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_DEMO_MODE": "true"
+      }
+    },
+    "closed-beta": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "autoIncrement": true,
+      "channel": "closed-beta",
+      "distribution": "store",
+      "env": {
+        "EXPO_PUBLIC_DEMO_MODE": "false"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "autoIncrement": true,
+      "channel": "production",
+      "distribution": "store",
+      "env": {
+        "EXPO_PUBLIC_DEMO_MODE": "false"
+      }
     }
   },
   "submit": {
-    "production": {}
+    "closed-beta": {
+      "android": {
+        "track": "internal"
+      }
+    },
+    "production": {
+      "android": {
+        "track": "production"
+      }
+    }
   }
 }

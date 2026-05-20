@@ -1,884 +1,820 @@
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import { Compass, KeyRound, List, Map, MapPin, Search, ShieldCheck, Users } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import {
-  Compass,
-  Handshake,
-  HeartHandshake,
-  MapPin,
-  Megaphone,
-  MessageSquare,
-  Send,
-  Trophy,
-  Users,
-} from 'lucide-react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AppCard } from '@/components/AppCard';
-import { AppPressButton } from '@/components/AppPressButton';
-import { AppScreen } from '@/components/AppScreen';
-import { ChapterDiscovery } from '@/components/community/ChapterDiscovery';
-import { FormTextInput } from '@/components/FormTextInput';
-import { BadgePill } from '@/components/ui/BadgePill';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { GlassCard } from '@/components/ui/GlassCard';
-import { GradientCard } from '@/components/ui/GradientCard';
-import { HeroSection } from '@/components/ui/HeroSection';
-import { SectionHeader } from '@/components/ui/SectionHeader';
-import { radius, spacing } from '@/constants/theme';
+import { PremiumChapterMap } from '@/components/community/PremiumChapterMap';
+import { radius, shadows, spacing } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
-import { usePreferences } from '@/context/PreferencesContext';
 import { useTheme } from '@/hooks/useTheme';
-import {
-  demoAttendance,
-  demoChapter,
-  demoChapterMembers,
-  demoChapterPosts,
-  demoPostReactions,
-  demoPromptResponses,
-} from '@/lib/demoData';
+import { demoDirectoryChapters } from '@/lib/demoData';
 import { supabase } from '@/lib/supabase';
-import { Database } from '@/types/database';
+import { redeemInviteCodeAction } from '@/lib/supabase/protectedActions';
+import { DirectoryChapter } from '@/types/chapters';
 
-type Chapter = Database['public']['Tables']['chapters']['Row'];
-type ChapterMember = Database['public']['Tables']['chapter_members']['Row'];
-type ChapterPost = Database['public']['Tables']['chapter_posts']['Row'];
-type ChapterPostReaction = Database['public']['Tables']['chapter_post_reactions']['Row'];
-type ChapterPromptResponse = Database['public']['Tables']['chapter_prompt_responses']['Row'];
-type Attendance = Database['public']['Tables']['attendance']['Row'];
-type CommunitySection = 'my' | 'discover' | 'activity';
+type JoinFilter = 'all' | 'open' | 'invite_code' | 'request' | 'near';
+type ViewMode = 'map' | 'list';
 
-type CommunityState = {
-  announcement: ChapterPost | null;
-  chapter: Chapter | null;
-  chapterStreak: number;
-  memberCount: number;
-  membership: ChapterMember | null;
-  participationCount: number;
-  prompt: ChapterPost | null;
-  promptResponses: ChapterPromptResponse[];
-  reactions: ChapterPostReaction[];
-  wins: ChapterPost[];
-};
-
-function getWeekKey(dateValue: string) {
-  const date = new Date(dateValue);
-  const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
-  const pastDays = Math.floor((date.getTime() - firstDayOfYear.getTime()) / 86400000);
-  const weekNumber = Math.ceil((pastDays + firstDayOfYear.getDay() + 1) / 7);
-
-  return `${date.getFullYear()}-${weekNumber}`;
-}
-
-function computeChapterStreak(attendanceRows: Attendance[]) {
-  return new Set(
-    attendanceRows
-      .map((attendance) => attendance.attended_at)
-      .filter((attendedAt): attendedAt is string => Boolean(attendedAt))
-      .map(getWeekKey),
-  ).size;
-}
-
-function getMilestones(memberCount: number, chapterStreak: number) {
-  return [
-    { complete: chapterStreak >= 1, label: 'First meeting held' },
-    { complete: chapterStreak >= 5, label: '5 weeks active' },
-    { complete: chapterStreak >= 10, label: '10 weeks active' },
-    { complete: memberCount >= 10, label: '10 members reached' },
-    { complete: false, label: 'New leader created' },
-  ];
-}
-
-const emptyState: CommunityState = {
-  announcement: null,
-  chapter: null,
-  chapterStreak: 0,
-  memberCount: 0,
-  membership: null,
-  participationCount: 0,
-  prompt: null,
-  promptResponses: [],
-  reactions: [],
-  wins: [],
-};
+const filters: { label: string; value: JoinFilter }[] = [
+  { label: 'All', value: 'all' },
+  { label: 'Open', value: 'open' },
+  { label: 'Invite', value: 'invite_code' },
+  { label: 'Request', value: 'request' },
+  { label: 'Near Me', value: 'near' },
+];
 
 export default function CommunityScreen() {
-  const { isDemoMode, session } = useAuth();
-  const { t } = usePreferences();
   const theme = useTheme();
-  const [activeSection, setActiveSection] = useState<CommunitySection>('my');
+  const { isDemoMode } = useAuth();
+  const [chapters, setChapters] = useState<DirectoryChapter[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
-  const [isJoining, setIsJoining] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [promptResponse, setPromptResponse] = useState('');
-  const [savedMessage, setSavedMessage] = useState('');
-  const [state, setState] = useState<CommunityState>(emptyState);
-  const [winBody, setWinBody] = useState('');
+  const [isRedeemOpen, setIsRedeemOpen] = useState(false);
+  const [isRedeeming, setIsRedeeming] = useState(false);
+  const [query, setQuery] = useState('');
+  const [redeemCode, setRedeemCode] = useState('');
+  const [redeemMessage, setRedeemMessage] = useState('');
+  const [selectedChapter, setSelectedChapter] = useState<DirectoryChapter | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('map');
+  const [joinFilter, setJoinFilter] = useState<JoinFilter>('all');
 
-  const milestones = useMemo(
-    () => getMilestones(state.memberCount, state.chapterStreak),
-    [state.memberCount, state.chapterStreak],
-  );
-
-  const loadCommunity = useCallback(async () => {
-    if (isDemoMode && session) {
-      const wins = demoChapterPosts.filter((post) => post.post_type === 'win');
-
-      setState({
-        announcement: demoChapterPosts.find((post) => post.post_type === 'announcement') ?? null,
-        chapter: demoChapter,
-        chapterStreak: computeChapterStreak(demoAttendance),
-        memberCount: demoChapterMembers.length,
-        membership: demoChapterMembers.find((member) => member.profile_id === session.user.id) ?? null,
-        participationCount: demoPromptResponses.length + wins.length,
-        prompt: demoChapterPosts.find((post) => post.post_type === 'weekly_prompt') ?? null,
-        promptResponses: demoPromptResponses,
-        reactions: demoPostReactions,
-        wins,
-      });
-      setErrorMessage('');
-      setIsLoading(false);
-      return;
-    }
-
-    if (!supabase || !session) {
-      setIsLoading(false);
-      return;
-    }
-
+  const loadChapters = useCallback(async () => {
     setErrorMessage('');
     setIsLoading(true);
 
+    if (isDemoMode || !supabase) {
+      setChapters(demoDirectoryChapters);
+      setSelectedChapter((current) => current ?? demoDirectoryChapters[0] ?? null);
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const membershipResult = await supabase
-        .from('chapter_members')
-        .select('*')
-        .eq('profile_id', session.user.id)
-        .order('joined_at', { ascending: false })
-        .limit(1);
+      const { data, error } = await supabase.rpc('get_public_chapter_directory', {
+        search_text: null,
+      });
 
-      if (membershipResult.error) throw membershipResult.error;
+      if (error) throw error;
 
-      const membership = (membershipResult.data?.[0] ?? null) as ChapterMember | null;
-
-      if (!membership?.chapter_id) {
-        setState(emptyState);
-        return;
-      }
-
-      const [chapterResult, countResult, postsResult, attendanceResult, responsesResult] = await Promise.all([
-        supabase.from('chapters').select('*').eq('id', membership.chapter_id).single(),
-        supabase.rpc('get_chapter_member_count', { target_chapter_id: membership.chapter_id }),
-        supabase
-          .from('chapter_posts')
-          .select('*')
-          .eq('chapter_id', membership.chapter_id)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('attendance')
-          .select('*')
-          .eq('chapter_id', membership.chapter_id)
-          .order('attended_at', { ascending: false }),
-        supabase
-          .from('chapter_prompt_responses')
-          .select('*')
-          .eq('chapter_id', membership.chapter_id)
-          .order('created_at', { ascending: false }),
-      ]);
-
-      if (chapterResult.error) throw chapterResult.error;
-      if (countResult.error) throw countResult.error;
-      if (postsResult.error) throw postsResult.error;
-      if (attendanceResult.error) throw attendanceResult.error;
-      if (responsesResult.error) throw responsesResult.error;
-
-      const posts = postsResult.data ?? [];
-      const wins = posts.filter((post) => post.post_type === 'win');
-      let reactions: ChapterPostReaction[] = [];
-
-      if (wins.length > 0) {
-        const reactionsResult = await supabase
-          .from('chapter_post_reactions')
-          .select('*')
-          .in('post_id', wins.map((win) => win.id));
-
-        if (reactionsResult.error) throw reactionsResult.error;
-        reactions = reactionsResult.data ?? [];
-      }
-
-      setState({
-        announcement: posts.find((post) => post.post_type === 'announcement') ?? null,
-        chapter: chapterResult.data,
-        chapterStreak: computeChapterStreak(attendanceResult.data ?? []),
-        memberCount: countResult.data ?? 0,
-        membership,
-        participationCount: (responsesResult.data ?? []).length + wins.length,
-        prompt: posts.find((post) => post.post_type === 'weekly_prompt') ?? null,
-        promptResponses: responsesResult.data ?? [],
-        reactions,
-        wins,
+      const nextChapters = data ?? [];
+      setChapters(nextChapters);
+      setSelectedChapter((current) => {
+        if (current && nextChapters.some((chapter) => chapter.id === current.id)) return current;
+        return nextChapters[0] ?? null;
       });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not load community.');
+      setChapters(demoDirectoryChapters);
+      setSelectedChapter((current) => current ?? demoDirectoryChapters[0] ?? null);
+      setErrorMessage(error instanceof Error ? error.message : 'Could not load chapters.');
     } finally {
       setIsLoading(false);
     }
-  }, [isDemoMode, session]);
+  }, [isDemoMode]);
 
   useEffect(() => {
-    loadCommunity();
-  }, [loadCommunity]);
+    loadChapters();
+  }, [loadChapters]);
 
-  async function handleJoinChapter() {
-    if (isDemoMode) {
-      setInviteCode('');
-      setSavedMessage('Demo chapter is already joined.');
-      setErrorMessage('');
+  const visibleChapters = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return chapters.filter((chapter) => {
+      const matchesQuery = normalizedQuery
+        ? [chapter.name, chapter.region, chapter.country, chapter.description]
+            .filter(Boolean)
+            .some((value) => value!.toLowerCase().includes(normalizedQuery))
+        : true;
+      const matchesFilter = joinFilter === 'all' || joinFilter === 'near' ? true : chapter.join_policy === joinFilter;
+
+      return matchesQuery && matchesFilter;
+    });
+  }, [chapters, joinFilter, query]);
+
+  useEffect(() => {
+    if (visibleChapters.length === 0) {
+      setSelectedChapter(null);
       return;
     }
 
-    if (!supabase) {
-      setErrorMessage('Supabase is not configured. Add your Expo public Supabase env vars.');
-      return;
-    }
+    setSelectedChapter((current) => {
+      if (current && visibleChapters.some((chapter) => chapter.id === current.id)) return current;
+      return visibleChapters[0];
+    });
+  }, [visibleChapters]);
 
-    if (!inviteCode.trim()) {
-      setErrorMessage('Enter a chapter invite code.');
-      return;
-    }
-
-    setErrorMessage('');
-    setSavedMessage('');
-    setIsJoining(true);
-
-    try {
-      const { error } = await supabase.rpc('join_chapter_by_invite_code', {
-        target_invite_code: inviteCode.trim(),
-      });
-
-      if (error) throw error;
-
-      setInviteCode('');
-      setSavedMessage('Chapter joined.');
-      await loadCommunity();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not join chapter.');
-    } finally {
-      setIsJoining(false);
-    }
+  function openChapter(chapter: DirectoryChapter) {
+    router.push(`/chapter/${chapter.id}` as never);
   }
 
-  async function submitPromptResponse() {
-    if (!state.chapter || !state.prompt || !session) return;
+  async function handleRedeemCode() {
+    const normalizedCode = redeemCode.trim().toUpperCase();
 
-    if (!promptResponse.trim()) {
-      setErrorMessage('Write a short response before submitting.');
+    if (!normalizedCode) {
+      setRedeemMessage('Enter an invite code.');
       return;
     }
 
-    if (isDemoMode) {
-      setState((current) => ({
-        ...current,
-        participationCount: current.participationCount + 1,
-        promptResponses: [
-          {
-            author_id: session.user.id,
-            body: promptResponse.trim(),
-            chapter_id: state.chapter!.id,
-            created_at: new Date().toISOString(),
-            id: `demo-response-${Date.now()}`,
-            prompt_post_id: state.prompt!.id,
-          },
-          ...current.promptResponses,
-        ],
-      }));
-      setPromptResponse('');
-      setSavedMessage('Prompt response saved in demo mode.');
-      return;
-    }
-
-    if (!supabase) return;
-
-    setErrorMessage('');
-    setSavedMessage('');
+    setRedeemMessage('');
+    setIsRedeeming(true);
 
     try {
-      const { error } = await supabase.from('chapter_prompt_responses').upsert(
-        {
-          author_id: session.user.id,
-          body: promptResponse.trim(),
-          chapter_id: state.chapter.id,
-          prompt_post_id: state.prompt.id,
-        },
-        { onConflict: 'prompt_post_id,author_id' },
-      );
-
-      if (error) throw error;
-
-      setPromptResponse('');
-      setSavedMessage('Prompt response saved.');
-      await loadCommunity();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not save response.');
-    }
-  }
-
-  async function postWin() {
-    if (!state.chapter || !session) return;
-
-    const trimmedWin = winBody.trim();
-
-    if (!trimmedWin) {
-      setErrorMessage('Write a short win before posting.');
-      return;
-    }
-
-    if (trimmedWin.length > 280) {
-      setErrorMessage('Wins must be 280 characters or fewer.');
-      return;
-    }
-
-    if (isDemoMode) {
-      const nextWin: ChapterPost = {
-        author_id: session.user.id,
-        body: trimmedWin,
-        chapter_id: state.chapter.id,
-        created_at: new Date().toISOString(),
-        id: `demo-win-${Date.now()}`,
-        post_type: 'win',
-        title: null,
-      };
-
-      setState((current) => ({
-        ...current,
-        participationCount: current.participationCount + 1,
-        wins: [nextWin, ...current.wins],
-      }));
-      setWinBody('');
-      setSavedMessage('Win posted in demo mode.');
-      return;
-    }
-
-    if (!supabase) return;
-
-    setErrorMessage('');
-    setSavedMessage('');
-
-    try {
-      const { error } = await supabase.from('chapter_posts').insert({
-        author_id: session.user.id,
-        body: trimmedWin,
-        chapter_id: state.chapter.id,
-        post_type: 'win',
-        title: null,
-      });
-
-      if (error) throw error;
-
-      setWinBody('');
-      setSavedMessage('Win posted.');
-      await loadCommunity();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not post win.');
-    }
-  }
-
-  async function reactRespect(win: ChapterPost) {
-    if (!session) return;
-
-    if (win.author_id === session.user.id) {
-      setErrorMessage('Respect is for wins from other members.');
-      return;
-    }
-
-    if (isDemoMode) {
-      if (state.reactions.some((reaction) => reaction.post_id === win.id && reaction.profile_id === session.user.id)) {
+      if (isDemoMode) {
+        setRedeemMessage('Invite redeemed. Your request is pending approval.');
+        setRedeemCode('');
         return;
       }
 
-      setState((current) => ({
-        ...current,
-        reactions: [
-          {
-            created_at: new Date().toISOString(),
-            id: `demo-reaction-${Date.now()}`,
-            post_id: win.id,
-            profile_id: session.user.id,
-            reaction_type: 'respect',
-          },
-          ...current.reactions,
-        ],
-      }));
-      return;
-    }
-
-    if (!supabase) return;
-
-    setErrorMessage('');
-
-    try {
-      const { error } = await supabase.from('chapter_post_reactions').upsert(
-        {
-          post_id: win.id,
-          profile_id: session.user.id,
-          reaction_type: 'respect',
-        },
-        { onConflict: 'post_id,profile_id,reaction_type' },
-      );
-
-      if (error) throw error;
-
-      await loadCommunity();
+      await redeemInviteCodeAction(normalizedCode);
+      setRedeemCode('');
+      setRedeemMessage('Invite redeemed. Your request is pending approval.');
+      await loadChapters();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not react to win.');
+      setRedeemMessage(error instanceof Error ? error.message : 'Invalid invite code.');
+    } finally {
+      setIsRedeeming(false);
     }
   }
 
-  const inChapter = Boolean(state.chapter && state.membership);
-
   return (
-    <AppScreen contentStyle={styles.screenContent}>
-      <HeroSection
-        eyebrow="Brotherhood"
-        icon={Handshake}
-        subtitle="Local accountability without DMs or a public feed."
-        title={t('community')}
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
+      <LinearGradient
+        colors={theme.name === 'dark' ? ['#070605', '#11100D', '#070605'] : ['#F6F1E8', '#EFE3D2', '#F6F1E8']}
+        style={styles.background}
       />
 
-      {isLoading ? (
-        <AppCard>
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color={theme.accent} />
-            <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading community...</Text>
+      <View style={styles.header}>
+        <View style={styles.titleBlock}>
+          <Text style={[styles.eyebrow, { color: theme.accent }]}>Near you / Global chapters</Text>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>Chapter Map</Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+            Discover local circles built around discipline, accountability, and steady weekly action.
+          </Text>
+        </View>
+        {isDemoMode ? (
+          <View style={[styles.demoPill, { backgroundColor: theme.accentSurface, borderColor: theme.accentBorder }]}>
+            <Text style={[styles.demoPillText, { color: theme.accentText }]}>Demo Mode</Text>
           </View>
-        </AppCard>
-      ) : null}
+        ) : null}
+      </View>
+
+      <View style={[styles.controlsCard, { backgroundColor: theme.glass, borderColor: theme.border }, shadows.card]}>
+        <View style={[styles.searchRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Search color={theme.textMuted} size={19} strokeWidth={2.5} />
+          <TextInput
+            accessibilityLabel="Search chapters"
+            autoCapitalize="none"
+            onChangeText={setQuery}
+            placeholder="Search chapters"
+            placeholderTextColor={theme.textMuted}
+            style={[styles.searchInput, { color: theme.textPrimary }]}
+            value={query}
+          />
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+          {filters.map((filter) => {
+            const selected = filter.value === joinFilter;
+            const disabled = filter.value === 'near';
+
+            return (
+              <Pressable
+                accessibilityRole="button"
+                disabled={disabled}
+                key={filter.value}
+                onPress={() => setJoinFilter(filter.value)}
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor: selected ? theme.cardInverted : theme.card,
+                    borderColor: selected ? theme.accentBorder : theme.border,
+                    opacity: disabled ? 0.55 : 1,
+                  },
+                ]}>
+                <Text style={[styles.filterText, { color: selected ? theme.textInverse : theme.textSecondary }]}>
+                  {filter.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        <View style={[styles.toggle, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <ToggleButton active={viewMode === 'map'} icon={Map} label="Map" onPress={() => setViewMode('map')} />
+          <ToggleButton active={viewMode === 'list'} icon={List} label="List" onPress={() => setViewMode('list')} />
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setIsRedeemOpen(true)}
+          style={[styles.redeemButton, { backgroundColor: theme.cardInverted, borderColor: theme.accentBorder }]}>
+          <KeyRound color={theme.accent} size={18} strokeWidth={2.8} />
+          <Text style={[styles.redeemButtonText, { color: theme.textInverse }]}>Enter invite code</Text>
+        </Pressable>
+      </View>
 
       {errorMessage ? (
-        <AppCard>
-          <Text style={[styles.error, { color: theme.error }]}>{errorMessage}</Text>
-          <View style={styles.cardAction}>
-            <AppPressButton label={t('tryAgain')} onPress={loadCommunity} variant="secondary" />
+        <View style={[styles.messageCard, { backgroundColor: theme.warning, borderColor: theme.accentBorder }]}>
+          <Text style={[styles.messageText, { color: theme.accentText }]}>
+            Live Supabase chapters were unavailable, so the demo directory is showing.
+          </Text>
+        </View>
+      ) : null}
+
+      <View style={styles.content}>
+        {isLoading ? (
+          <LoadingState />
+        ) : visibleChapters.length === 0 ? (
+          <EmptyState query={query} />
+        ) : viewMode === 'map' ? (
+          <View style={[styles.mapCard, { borderColor: theme.accentBorder }, shadows.glow]}>
+            <PremiumChapterMap
+              chapters={visibleChapters}
+              onOpenChapter={openChapter}
+              onSelectChapter={setSelectedChapter}
+              selectedChapter={selectedChapter}
+            />
           </View>
-        </AppCard>
-      ) : null}
-
-      {savedMessage ? <Text style={[styles.saved, { color: theme.success }]}>{savedMessage}</Text> : null}
-
-      {!isLoading ? (
-        <CommunityTabs activeSection={activeSection} onChange={setActiveSection} />
-      ) : null}
-
-      {!isLoading && activeSection === 'my' ? (
-        inChapter && state.chapter ? (
-          <>
-            <GradientCard glow style={styles.chapterHero} variant="dark">
-              <Text style={[styles.darkEyebrow, { color: theme.accent }]}>Your chapter</Text>
-              <Text style={[styles.darkTitle, { color: theme.textInverse }]}>{state.chapter.name}</Text>
-              <Text style={[styles.chapterLocation, { color: theme.textInverseMuted }]}>
-                {[state.chapter.region, state.chapter.country].filter(Boolean).join(', ') || 'Location pending'}
-              </Text>
-              <Text style={[styles.chapterLocation, { color: theme.textInverseMuted }]}>
-                {state.chapter.meeting_day ?? 'Meeting day TBD'} · {state.chapter.meeting_location ?? 'Location TBD'}
-              </Text>
-              <View style={styles.avatarRow}>
-                {Array.from({ length: Math.min(state.memberCount, 4) }).map((_, index) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.avatar,
-                      {
-                        backgroundColor: theme.accent,
-                        borderColor: theme.cardInverted,
-                        marginLeft: index === 0 ? 0 : -10,
-                      },
-                    ]}>
-                    <Text style={[styles.avatarText, { color: theme.accentText }]}>{index + 1}</Text>
-                  </View>
-                ))}
-              </View>
-              <View style={styles.statsGrid}>
-                <Metric label="Members" value={`${state.memberCount}`} />
-                <Metric label="Chapter streak" value={`${state.chapterStreak}`} />
-                <Metric label="Participation" value={`${state.participationCount}`} />
-              </View>
-            </GradientCard>
-
-            <PostCard emptyText="No facilitator announcement yet." label="Latest announcement" post={state.announcement} />
-
-            <GlassCard>
-              <SectionHeader icon={Handshake} title="Chapter milestones" />
-              <View style={styles.milestoneList}>
-                {milestones.map((milestone) => (
-                  <BadgePill key={milestone.label} label={milestone.label} locked={!milestone.complete} />
-                ))}
-              </View>
-            </GlassCard>
-          </>
         ) : (
-          <AppCard>
-            <EmptyState
-              body="Chapters are local groups for accountability, encouragement, and steady weekly action."
-              icon={Handshake}
-              title="Join a Chapter"
-            />
-
-            <View style={styles.form}>
-              <FormTextInput
-                autoCapitalize="characters"
-                label="Invite code"
-                onChangeText={setInviteCode}
-                placeholder="Enter invite code"
-                value={inviteCode}
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
+            {visibleChapters.map((chapter) => (
+              <ChapterCard
+                chapter={chapter}
+                key={chapter.id}
+                onOpen={() => openChapter(chapter)}
+                onPreview={() => setSelectedChapter(chapter)}
+                selected={selectedChapter?.id === chapter.id}
               />
-            </View>
-
-            <View style={styles.cardAction}>
-              <AppPressButton disabled={isJoining} icon={Users} label={isJoining ? 'Joining...' : 'Join'} onPress={handleJoinChapter} />
-            </View>
-            <View style={styles.secondaryAction}>
-              <AppPressButton icon={MapPin} label="Discover Chapters" onPress={() => setActiveSection('discover')} variant="secondary" />
-            </View>
-          </AppCard>
-        )
-      ) : null}
-
-      {!isLoading && activeSection === 'discover' ? (
-        <ChapterDiscovery
-          currentChapter={state.chapter}
-          currentMembership={state.membership}
-          onMembershipChanged={loadCommunity}
-        />
-      ) : null}
-
-      {!isLoading && activeSection === 'activity' ? (
-        inChapter && state.chapter ? (
-          <>
-            <PostCard emptyText="No weekly discussion prompt yet." label="Weekly discussion prompt" post={state.prompt} />
-
-            <GlassCard>
-              <SectionHeader icon={MessageSquare} title="Weekly response" subtitle="Keep it short, honest, and useful to the group." />
-              {state.prompt ? (
-                <>
-                  <FormTextInput
-                    label="Your response"
-                    multiline
-                    onChangeText={setPromptResponse}
-                    placeholder="What are you taking action on this week?"
-                    style={styles.multiline}
-                    textAlignVertical="top"
-                    value={promptResponse}
-                  />
-                  <View style={styles.cardAction}>
-                    <AppPressButton icon={Send} label="Submit response" onPress={submitPromptResponse} />
-                  </View>
-                </>
-              ) : (
-                <Text style={[styles.body, { color: theme.textSecondary }]}>
-                  A facilitator has not posted this week's prompt yet.
-                </Text>
-              )}
-              <Text style={[styles.participationNote, { color: theme.textMuted }]}>
-                {state.promptResponses.length} member responses
-              </Text>
-            </GlassCard>
-
-            <GlassCard>
-              <SectionHeader icon={Trophy} title="Chapter wins" subtitle="Wins are capped at 280 characters." />
-              <FormTextInput
-                label={`Share a win (${winBody.length}/280)`}
-                multiline
-                onChangeText={setWinBody}
-                placeholder="What went right this week?"
-                style={styles.multiline}
-                textAlignVertical="top"
-                value={winBody}
-              />
-              <View style={styles.cardAction}>
-                <AppPressButton icon={Trophy} label="Post win" onPress={postWin} variant="accent" />
-              </View>
-
-              <View style={styles.winList}>
-                {state.wins.length === 0 ? (
-                  <Text style={[styles.body, { color: theme.textSecondary }]}>No wins posted yet.</Text>
-                ) : (
-                  state.wins.map((win) => (
-                    <WinCard
-                      key={win.id}
-                      disabled={win.author_id === session?.user.id}
-                      respectCount={state.reactions.filter((reaction) => reaction.post_id === win.id).length}
-                      win={win}
-                      onRespect={() => reactRespect(win)}
-                    />
-                  ))
-                )}
-              </View>
-            </GlassCard>
-          </>
-        ) : (
-          <AppCard>
-            <EmptyState
-              body="Join a chapter before posting wins or responding to weekly prompts."
-              icon={Compass}
-              title="No chapter activity yet"
-            />
-            <View style={styles.cardAction}>
-              <AppPressButton label="Discover Chapters" onPress={() => setActiveSection('discover')} variant="accent" />
-            </View>
-          </AppCard>
-        )
-      ) : null}
-    </AppScreen>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+      <RedeemInviteModal
+        code={redeemCode}
+        isOpen={isRedeemOpen}
+        isSaving={isRedeeming}
+        message={redeemMessage}
+        onCancel={() => {
+          setIsRedeemOpen(false);
+          setRedeemMessage('');
+        }}
+        onChangeCode={setRedeemCode}
+        onConfirm={handleRedeemCode}
+      />
+    </SafeAreaView>
   );
 }
 
-function CommunityTabs({
-  activeSection,
-  onChange,
+function RedeemInviteModal({
+  code,
+  isOpen,
+  isSaving,
+  message,
+  onCancel,
+  onChangeCode,
+  onConfirm,
 }: {
-  activeSection: CommunitySection;
-  onChange: (section: CommunitySection) => void;
+  code: string;
+  isOpen: boolean;
+  isSaving: boolean;
+  message: string;
+  onCancel: () => void;
+  onChangeCode: (value: string) => void;
+  onConfirm: () => void;
 }) {
+  const theme = useTheme();
+
   return (
-    <View style={styles.tabBar}>
-      {[
-        { label: 'My Chapter', value: 'my' as const },
-        { label: 'Discover', value: 'discover' as const },
-        { label: 'Activity', value: 'activity' as const },
-      ].map((tab) => (
-        <CommunityTab
-          active={activeSection === tab.value}
-          key={tab.value}
-          label={tab.label}
-          onPress={() => onChange(tab.value)}
-        />
+    <Modal animationType="fade" onRequestClose={onCancel} transparent visible={isOpen}>
+      <View style={[styles.modalBackdrop, { backgroundColor: theme.overlay }]}>
+        <Pressable accessibilityLabel="Close invite code dialog" onPress={onCancel} style={StyleSheet.absoluteFill} />
+        <View style={[styles.modalCard, { backgroundColor: theme.card, borderColor: theme.border }, shadows.glow]}>
+          <Text style={[styles.eyebrow, { color: theme.accent }]}>Invite access</Text>
+          <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Redeem invite code</Text>
+          <Text style={[styles.modalBody, { color: theme.textSecondary }]}>
+            Enter a leader-generated code. Valid codes create a pending approval request.
+          </Text>
+          <TextInput
+            accessibilityLabel="Invite code"
+            autoCapitalize="characters"
+            onChangeText={onChangeCode}
+            placeholder="BLOKE-XXXX-XXXX"
+            placeholderTextColor={theme.textMuted}
+            style={[styles.modalInput, { backgroundColor: theme.cardMuted, borderColor: theme.border, color: theme.textPrimary }]}
+            value={code}
+          />
+          {message ? <Text style={[styles.modalMessage, { color: message.includes('pending') ? theme.success : theme.error }]}>{message}</Text> : null}
+          <View style={styles.modalActions}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onCancel}
+              style={[styles.modalAction, { backgroundColor: theme.cardMuted, borderColor: theme.border }]}>
+              <Text style={[styles.modalActionText, { color: theme.textPrimary }]}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              disabled={isSaving}
+              onPress={onConfirm}
+              style={[styles.modalAction, { backgroundColor: theme.accent, borderColor: theme.accent, opacity: isSaving ? 0.7 : 1 }]}>
+              <Text style={[styles.modalActionText, { color: theme.accentText }]}>{isSaving ? 'Checking...' : 'Redeem'}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function ToggleButton({
+  active,
+  icon: Icon,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  icon: typeof Map;
+  label: string;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={[
+        styles.toggleButton,
+        {
+          backgroundColor: active ? theme.cardInverted : 'transparent',
+        },
+      ]}>
+      <Icon color={active ? theme.accent : theme.textSecondary} size={17} strokeWidth={2.7} />
+      <Text style={[styles.toggleText, { color: active ? theme.textInverse : theme.textSecondary }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function LoadingState() {
+  const theme = useTheme();
+
+  return (
+    <View style={[styles.loadingCard, { backgroundColor: theme.glass, borderColor: theme.border }]}>
+      <View style={styles.loadingTop}>
+        <ActivityIndicator color={theme.accent} />
+        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading chapter signal...</Text>
+      </View>
+      {[0, 1, 2].map((item) => (
+        <View key={item} style={[styles.skeleton, { backgroundColor: theme.glassMuted }]}>
+          <View style={[styles.skeletonIcon, { backgroundColor: theme.border }]} />
+          <View style={styles.skeletonCopy}>
+            <View style={[styles.skeletonLine, { backgroundColor: theme.border }]} />
+            <View style={[styles.skeletonLineShort, { backgroundColor: theme.border }]} />
+          </View>
+        </View>
       ))}
     </View>
   );
 }
 
-function CommunityTab({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
+function EmptyState({ query }: { query: string }) {
   const theme = useTheme();
 
   return (
+    <View style={[styles.emptyCard, { backgroundColor: theme.glass, borderColor: theme.border }, shadows.card]}>
+      <View style={[styles.emptyIcon, { backgroundColor: theme.cardInverted, borderColor: theme.accentBorder }]}>
+        <Compass color={theme.accent} size={30} strokeWidth={2.8} />
+      </View>
+      <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>No chapters found</Text>
+      <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
+        {query ? 'Try a different city, region, or chapter name.' : 'New public chapters will appear here as leaders launch them.'}
+      </Text>
+    </View>
+  );
+}
+
+function ChapterCard({
+  chapter,
+  onOpen,
+  onPreview,
+  selected,
+}: {
+  chapter: DirectoryChapter;
+  onOpen: () => void;
+  onPreview: () => void;
+  selected: boolean;
+}) {
+  const theme = useTheme();
+  const joinLabel = getJoinLabel(chapter.join_policy);
+
+  return (
     <Pressable
-      accessibilityLabel={label}
-      accessibilityRole="tab"
-      accessibilityState={{ selected: active }}
-      onPress={onPress}
+      accessibilityRole="button"
+      onPress={onPreview}
       style={[
-        styles.tab,
+        styles.chapterCard,
         {
-          backgroundColor: active ? theme.accent : theme.card,
-          borderColor: active ? theme.accent : theme.border,
+          backgroundColor: theme.glass,
+          borderColor: selected ? theme.accentBorder : theme.border,
         },
+        selected ? shadows.glow : shadows.card,
       ]}>
-      <Text style={[styles.tabText, { color: active ? theme.accentText : theme.textPrimary }]}>{label}</Text>
+      <View style={styles.chapterTop}>
+        <View style={[styles.chapterIcon, { backgroundColor: theme.cardInverted, borderColor: theme.accentBorder }]}>
+          <MapPin color={theme.accent} size={22} strokeWidth={2.8} />
+        </View>
+        <View style={styles.chapterCopy}>
+          <Text style={[styles.chapterTitle, { color: theme.textPrimary }]}>{chapter.name}</Text>
+          <Text style={[styles.chapterMeta, { color: theme.textSecondary }]}>
+            {[chapter.region, chapter.country].filter(Boolean).join(', ') || 'Location pending'}
+          </Text>
+        </View>
+        {chapter.is_public ? (
+          <ShieldCheck color={theme.accent} size={20} strokeWidth={2.5} />
+        ) : null}
+      </View>
+
+      <Text style={[styles.chapterDescription, { color: theme.textSecondary }]} numberOfLines={2}>
+        {chapter.description ?? 'A local chapter for discipline, accountability, and brotherhood.'}
+      </Text>
+
+      <View style={styles.chapterFooter}>
+        <View style={styles.statPills}>
+          <View style={[styles.statPill, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Users color={theme.accent} size={15} strokeWidth={2.6} />
+            <Text style={[styles.statText, { color: theme.textSecondary }]}>{chapter.member_count ?? 0}</Text>
+          </View>
+          <View style={[styles.statPill, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.statText, { color: theme.textSecondary }]}>{chapter.meeting_day ?? 'TBD'}</Text>
+          </View>
+          <View style={[styles.statPill, { backgroundColor: theme.accentSurface, borderColor: theme.accentBorder }]}>
+            <Text style={[styles.statText, { color: theme.accentText }]}>{joinLabel}</Text>
+          </View>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          onPress={onOpen}
+          style={[styles.cardActionButton, { backgroundColor: theme.accent, borderColor: theme.accent }]}>
+          <Text style={[styles.cardActionText, { color: theme.accentText }]}>{getCtaLabel(chapter.join_policy)}</Text>
+        </Pressable>
+      </View>
     </Pressable>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  const theme = useTheme();
-
-  return (
-    <View style={[styles.metric, { backgroundColor: 'rgba(255, 252, 247, 0.08)', borderColor: theme.border }]}>
-      <Text style={[styles.metricLabel, { color: theme.accent }]}>{label}</Text>
-      <Text style={[styles.metricValue, { color: theme.textInverse }]}>{value}</Text>
-    </View>
-  );
+function getJoinLabel(joinPolicy: DirectoryChapter['join_policy']) {
+  if (joinPolicy === 'invite_code') return 'Invite';
+  if (joinPolicy === 'request') return 'Request';
+  return 'Open';
 }
 
-function PostCard({ emptyText, label, post }: { emptyText: string; label: string; post: ChapterPost | null }) {
-  const theme = useTheme();
-
-  return (
-    <GlassCard>
-      <SectionHeader icon={label.includes('announcement') ? Megaphone : MessageSquare} title={label} />
-      <Text style={[styles.postTitle, { color: theme.textPrimary }]}>{post?.title ?? emptyText}</Text>
-      {post?.body ? <Text style={[styles.body, { color: theme.textSecondary }]}>{post.body}</Text> : null}
-    </GlassCard>
-  );
-}
-
-function WinCard({
-  disabled,
-  onRespect,
-  respectCount,
-  win,
-}: {
-  disabled: boolean;
-  onRespect: () => void;
-  respectCount: number;
-  win: ChapterPost;
-}) {
-  const theme = useTheme();
-
-  return (
-    <View style={[styles.winCard, { backgroundColor: theme.cardMuted, borderColor: theme.border }]}>
-      <Text style={[styles.winBody, { color: theme.textPrimary }]}>{win.body}</Text>
-      <View style={styles.winFooter}>
-        <Text style={[styles.respectCount, { color: theme.textMuted }]}>{respectCount} Respect</Text>
-        <AppPressButton disabled={disabled} icon={HeartHandshake} label="Respect" onPress={onRespect} variant="secondary" />
-      </View>
-    </View>
-  );
+function getCtaLabel(joinPolicy: DirectoryChapter['join_policy']) {
+  if (joinPolicy === 'invite_code') return 'Enter Invite';
+  if (joinPolicy === 'request') return 'Request';
+  return 'Join Now';
 }
 
 const styles = StyleSheet.create({
-  screenContent: {
-    justifyContent: 'flex-start',
+  safeArea: {
+    flex: 1,
   },
-  tabBar: {
+  background: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  header: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.md,
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    zIndex: 3,
+  },
+  titleBlock: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  eyebrow: {
+    fontSize: 12,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  title: {
+    fontSize: 30,
+    fontWeight: '900',
+    lineHeight: 35,
+  },
+  subtitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  demoPill: {
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  demoPillText: {
+    fontSize: 12,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  controlsCard: {
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    zIndex: 3,
+  },
+  searchRow: {
+    alignItems: 'center',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  filterRow: {
+    gap: spacing.sm,
+    paddingRight: spacing.md,
+  },
+  filterChip: {
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
+  },
+  filterText: {
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  toggle: {
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    flexDirection: 'row',
+    padding: 4,
+  },
+  toggleButton: {
+    alignItems: 'center',
+    borderRadius: radius.pill,
+    flex: 1,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    justifyContent: 'center',
+    minHeight: 36,
+  },
+  toggleText: {
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  redeemButton: {
+    alignItems: 'center',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'center',
+    minHeight: 42,
+    paddingHorizontal: spacing.md,
+  },
+  redeemButtonText: {
+    fontSize: 13,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  messageCard: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    padding: spacing.md,
+    zIndex: 3,
+  },
+  messageText: {
+    fontSize: 13,
+    fontWeight: '900',
+    lineHeight: 18,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: 96,
+    paddingTop: spacing.sm,
+  },
+  mapCard: {
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    flex: 1,
+    minHeight: 430,
+    overflow: 'hidden',
+  },
+  listContent: {
+    gap: spacing.md,
+    paddingBottom: 120,
+  },
+  loadingCard: {
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    gap: spacing.md,
+    padding: spacing.lg,
+  },
+  loadingTop: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  loadingText: {
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  skeleton: {
+    alignItems: 'center',
+    borderRadius: radius.lg,
+    flexDirection: 'row',
+    gap: spacing.md,
+    minHeight: 86,
+    padding: spacing.md,
+  },
+  skeletonIcon: {
+    borderRadius: radius.lg,
+    height: 48,
+    width: 48,
+  },
+  skeletonCopy: {
+    flex: 1,
+    gap: spacing.sm,
+  },
+  skeletonLine: {
+    borderRadius: radius.pill,
+    height: 14,
+    width: '72%',
+  },
+  skeletonLineShort: {
+    borderRadius: radius.pill,
+    height: 12,
+    width: '48%',
+  },
+  emptyCard: {
+    alignItems: 'center',
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    gap: spacing.md,
+    padding: spacing.xl,
+  },
+  emptyIcon: {
+    alignItems: 'center',
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    height: 66,
+    justifyContent: 'center',
+    width: 66,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  emptyBody: {
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  chapterCard: {
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    gap: spacing.md,
+    padding: spacing.lg,
+  },
+  chapterTop: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  chapterIcon: {
+    alignItems: 'center',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    height: 52,
+    justifyContent: 'center',
+    width: 52,
+  },
+  chapterCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  chapterTitle: {
+    fontSize: 21,
+    fontWeight: '900',
+    lineHeight: 26,
+  },
+  chapterMeta: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  chapterDescription: {
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 22,
+  },
+  chapterFooter: {
+    gap: spacing.md,
+  },
+  statPills: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
-  tab: {
+  statPill: {
     alignItems: 'center',
     borderRadius: radius.pill,
     borderWidth: 1,
-    flex: 1,
-    minHeight: 48,
-    minWidth: 110,
-    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
-  tabText: {
-    fontSize: 14,
+  statText: {
+    fontSize: 12,
     fontWeight: '900',
-    textAlign: 'center',
     textTransform: 'uppercase',
   },
-  loadingRow: {
+  cardActionButton: {
     alignItems: 'center',
-    flexDirection: 'row',
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 58,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  cardActionText: {
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  modalBackdrop: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  modalCard: {
+    borderRadius: radius.xl,
+    borderWidth: 1,
     gap: spacing.md,
+    maxWidth: 540,
+    padding: spacing.xl,
+    width: '100%',
   },
-  loadingText: {
-    fontSize: 18,
+  modalTitle: {
+    fontSize: 30,
+    fontWeight: '900',
+    lineHeight: 36,
+  },
+  modalBody: {
+    fontSize: 16,
     fontWeight: '700',
-  },
-  chapterHero: {
-    gap: spacing.lg,
-  },
-  chapterLocation: {
-    fontSize: 17,
-    fontWeight: '800',
     lineHeight: 24,
   },
-  darkEyebrow: {
+  modalInput: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 1,
+    minHeight: 58,
+    paddingHorizontal: spacing.md,
+  },
+  modalMessage: {
     fontSize: 14,
     fontWeight: '900',
-    textTransform: 'uppercase',
+    lineHeight: 20,
   },
-  darkTitle: {
-    fontSize: 38,
-    fontWeight: '900',
-    lineHeight: 44,
-  },
-  body: {
-    fontSize: 19,
-    lineHeight: 29,
-    marginTop: spacing.md,
-  },
-  form: {
-    marginTop: spacing.xl,
-  },
-  multiline: {
-    minHeight: 112,
-  },
-  cardAction: {
-    marginTop: spacing.xl,
-  },
-  secondaryAction: {
-    marginTop: spacing.md,
-  },
-  statsGrid: {
+  modalActions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.md,
-    marginTop: spacing.xl,
   },
-  avatarRow: {
-    flexDirection: 'row',
-    marginTop: spacing.sm,
-  },
-  avatar: {
+  modalAction: {
     alignItems: 'center',
-    borderRadius: radius.pill,
-    borderWidth: 3,
-    height: 44,
-    justifyContent: 'center',
-    width: 44,
-  },
-  avatarText: {
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  metric: {
-    borderRadius: radius.md,
+    borderRadius: radius.xl,
     borderWidth: 1,
     flex: 1,
-    gap: spacing.xs,
-    minWidth: 140,
-    padding: spacing.md,
+    justifyContent: 'center',
+    minHeight: 56,
+    minWidth: 150,
+    paddingHorizontal: spacing.md,
   },
-  metricLabel: {
-    fontSize: 14,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
-  metricValue: {
-    fontSize: 28,
-    fontWeight: '900',
-  },
-  postTitle: {
-    fontSize: 24,
-    fontWeight: '900',
-    lineHeight: 31,
-  },
-  milestoneList: {
-    gap: spacing.md,
-    marginTop: spacing.lg,
-  },
-  error: {
-    fontSize: 17,
-    fontWeight: '700',
-    lineHeight: 24,
-  },
-  saved: {
-    fontSize: 17,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
-  participationNote: {
+  modalActionText: {
     fontSize: 15,
     fontWeight: '900',
-    marginTop: spacing.lg,
-    textTransform: 'uppercase',
-  },
-  winList: {
-    gap: spacing.md,
-    marginTop: spacing.lg,
-  },
-  winCard: {
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    gap: spacing.md,
-    padding: spacing.md,
-  },
-  winBody: {
-    fontSize: 18,
-    fontWeight: '800',
-    lineHeight: 26,
-  },
-  winFooter: {
-    gap: spacing.md,
-  },
-  respectCount: {
-    fontSize: 14,
-    fontWeight: '900',
-    textTransform: 'uppercase',
   },
 });

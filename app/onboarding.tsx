@@ -68,7 +68,7 @@ export default function OnboardingScreen() {
         language: normalizedLanguage,
         onboarding_complete: true,
         personal_goal: personalGoal.trim(),
-        role: 'participant',
+        role: 'user',
       });
 
       if (profileError) {
@@ -76,7 +76,7 @@ export default function OnboardingScreen() {
       }
 
       if (inviteCode.trim()) {
-        const { error: inviteError } = await supabase.rpc('join_chapter_by_invite_code', {
+        const { error: inviteError } = await supabase.rpc('redeem_invite_code', {
           target_invite_code: inviteCode.trim(),
         });
 

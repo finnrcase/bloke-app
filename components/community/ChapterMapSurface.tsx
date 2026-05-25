@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { radius, shadows, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { getMapReadyChapters } from '@/lib/chapterCoordinates';
 import { DirectoryChapter } from '@/types/chapters';
 
 type ChapterMapProps = {
@@ -19,28 +20,13 @@ type PositionedChapter = DirectoryChapter & {
   top: number;
 };
 
-function getCoordinate(value: number | null) {
-  if (value === null) return null;
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 function getPositionedChapters(chapters: DirectoryChapter[]): PositionedChapter[] {
-  const withCoordinates = chapters
-    .map((chapter) => ({
-      ...chapter,
-      latitude: getCoordinate(chapter.latitude),
-      longitude: getCoordinate(chapter.longitude),
-    }))
-    .filter((chapter): chapter is DirectoryChapter & { latitude: number; longitude: number } => {
-      return chapter.latitude !== null && chapter.longitude !== null;
-    });
+  const withCoordinates = getMapReadyChapters(chapters);
 
   if (withCoordinates.length === 0) return [];
 
-  const latitudes = withCoordinates.map((chapter) => chapter.latitude);
-  const longitudes = withCoordinates.map((chapter) => chapter.longitude);
+  const latitudes = withCoordinates.map((item) => item.latitude);
+  const longitudes = withCoordinates.map((item) => item.longitude);
   const minLatitude = Math.min(...latitudes);
   const maxLatitude = Math.max(...latitudes);
   const minLongitude = Math.min(...longitudes);
@@ -48,10 +34,12 @@ function getPositionedChapters(chapters: DirectoryChapter[]): PositionedChapter[
   const latitudeRange = Math.max(maxLatitude - minLatitude, 0.1);
   const longitudeRange = Math.max(maxLongitude - minLongitude, 0.1);
 
-  return withCoordinates.map((chapter) => ({
+  return withCoordinates.map(({ chapter, latitude, longitude }) => ({
     ...chapter,
-    left: 10 + ((chapter.longitude - minLongitude) / longitudeRange) * 80,
-    top: 12 + (1 - (chapter.latitude - minLatitude) / latitudeRange) * 76,
+    latitude,
+    left: 10 + ((longitude - minLongitude) / longitudeRange) * 80,
+    longitude,
+    top: 12 + (1 - (latitude - minLatitude) / latitudeRange) * 76,
   }));
 }
 

@@ -7,6 +7,7 @@ import MapView, { Circle, Marker, Polyline, PROVIDER_GOOGLE, Region } from 'reac
 
 import { radius, shadows, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { getMapReadyChapters } from '@/lib/chapterCoordinates';
 import { DirectoryChapter } from '@/types/chapters';
 
 type PremiumChapterMapProps = {
@@ -31,19 +32,8 @@ const darkMapStyle = [
   { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#6E6558' }] },
 ];
 
-function getCoordinate(value: number | null) {
-  if (value === null) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 function getChapterRegion(chapters: DirectoryChapter[]): Region {
-  const points = chapters
-    .map((chapter) => ({
-      latitude: getCoordinate(chapter.latitude),
-      longitude: getCoordinate(chapter.longitude),
-    }))
-    .filter((point): point is { latitude: number; longitude: number } => point.latitude !== null && point.longitude !== null);
+  const points = getMapReadyChapters(chapters);
 
   if (points.length === 0) {
     return {
@@ -82,16 +72,7 @@ export function PremiumChapterMap({
   const [userLocation, setUserLocation] = useState<Location.LocationObjectCoords | null>(null);
   const initialRegion = useMemo(() => getChapterRegion(chapters), [chapters]);
   const mapReadyChapters = useMemo(
-    () =>
-      chapters
-        .map((chapter) => ({
-          chapter,
-          latitude: getCoordinate(chapter.latitude),
-          longitude: getCoordinate(chapter.longitude),
-        }))
-        .filter((row): row is { chapter: DirectoryChapter; latitude: number; longitude: number } => {
-          return row.latitude !== null && row.longitude !== null;
-        }),
+    () => getMapReadyChapters(chapters),
     [chapters],
   );
   const networkCoordinates = useMemo(

@@ -7,6 +7,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import { radius, shadows, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { getMapReadyChapters } from '@/lib/chapterCoordinates';
 import { DirectoryChapter } from '@/types/chapters';
 
 type PremiumChapterMapProps = {
@@ -23,24 +24,6 @@ type ChapterFeatureProperties = {
 };
 
 const rasterTileUrl = 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-
-function getCoordinate(value: number | null) {
-  if (value === null) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function getMapReadyChapters(chapters: DirectoryChapter[]) {
-  return chapters
-    .map((chapter) => ({
-      chapter,
-      latitude: getCoordinate(chapter.latitude),
-      longitude: getCoordinate(chapter.longitude),
-    }))
-    .filter((row): row is { chapter: DirectoryChapter; latitude: number; longitude: number } => {
-      return row.latitude !== null && row.longitude !== null;
-    });
-}
 
 function getFeatureCollection(chapters: DirectoryChapter[]) {
   const points = getMapReadyChapters(chapters);

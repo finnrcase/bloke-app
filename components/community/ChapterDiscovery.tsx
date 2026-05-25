@@ -7,6 +7,7 @@ import { AppCard } from '@/components/AppCard';
 import { AppPressButton } from '@/components/AppPressButton';
 import { ChapterListFallback } from '@/components/community/ChapterListFallback';
 import { ChapterMap } from '@/components/community/ChapterMap';
+import { PremiumChapterMap } from '@/components/community/PremiumChapterMap';
 import { ChapterPreviewCard } from '@/components/community/ChapterPreviewCard';
 import { ChapterJoinAction, JoinChapterModal } from '@/components/community/JoinChapterModal';
 import { FormTextInput } from '@/components/FormTextInput';
@@ -15,6 +16,7 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { radius, spacing } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/hooks/useTheme';
+import { getChapterCoordinateDiagnostics, logChapterCoordinateDiagnostics } from '@/lib/chapterCoordinates';
 import { demoChapter, demoChapterMembers, demoDirectoryChapters, demoJoinRequests } from '@/lib/demoData';
 import { supabase } from '@/lib/supabase';
 import { DirectoryChapter } from '@/types/chapters';
@@ -112,6 +114,15 @@ export function ChapterDiscovery({
 
     return chapters.filter((chapter) => matchesSearch(chapter, query) && matchesFilter(chapter, filter));
   }, [chapters, filter, searchQuery]);
+  const coordinateDiagnostics = useMemo(
+    () => getChapterCoordinateDiagnostics(visibleChapters),
+    [visibleChapters],
+  );
+  const hasMapReadyChapters = coordinateDiagnostics.validMapReadyChapters > 0;
+
+  useEffect(() => {
+    logChapterCoordinateDiagnostics('chapter-directory', visibleChapters);
+  }, [visibleChapters]);
 
   const loadDiscovery = useCallback(async () => {
     if (isDemoMode) {
@@ -436,14 +447,23 @@ export function ChapterDiscovery({
           </View>
 
           {viewMode === 'map' ? (
-            <>
+            hasMapReadyChapters ? (
+              <View style={[styles.realMapFrame, { borderColor: theme.accentBorder }]}>
+                <PremiumChapterMap
+                  chapters={visibleChapters}
+                  onOpenChapter={setSelectedChapter}
+                  onSelectChapter={setSelectedChapter}
+                  selectedChapter={selectedChapter}
+                />
+              </View>
+            ) : (
               <ChapterMap
                 chapters={visibleChapters}
                 currentChapterId={currentChapterId}
                 onSelectChapter={setSelectedChapter}
                 selectedChapterId={selectedChapter?.id}
               />
-            </>
+            )
           ) : null}
 
           {selectedChapter ? (
@@ -724,6 +744,12 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '900',
     lineHeight: 34,
+  },
+  realMapFrame: {
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    minHeight: 520,
+    overflow: 'hidden',
   },
   currentEyebrow: {
     fontSize: 12,

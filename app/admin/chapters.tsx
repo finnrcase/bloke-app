@@ -16,6 +16,7 @@ import { radius, spacing } from '@/constants/theme';
 import { useAdminState } from '@/context/AdminContext';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/hooks/useTheme';
+import { hasValidCoordinates } from '@/lib/chapterCoordinates';
 import { demoChapter, demoChapterMembers, demoMemberProfiles } from '@/lib/demoData';
 import { createChapterAction, editChapterAction, generateInviteCodeAction } from '@/lib/supabase/protectedActions';
 import { supabase } from '@/lib/supabase';
@@ -522,10 +523,9 @@ function ChapterCard({
   row: ChapterRow;
 }) {
   const location = [row.chapter.region, row.chapter.country].filter(Boolean).join(', ') || 'No location set';
-  const coordinates =
-    row.chapter.latitude !== null && row.chapter.longitude !== null
-      ? `${row.chapter.latitude.toFixed(4)}, ${row.chapter.longitude.toFixed(4)}`
-      : 'Coordinates optional';
+  const coordinates = hasValidCoordinates(row.chapter.latitude, row.chapter.longitude)
+    ? `${Number(row.chapter.latitude).toFixed(4)}, ${Number(row.chapter.longitude).toFixed(4)}`
+    : 'Coordinates optional';
   const theme = useTheme();
   const [country, setCountry] = useState(row.chapter.country ?? '');
   const [description, setDescription] = useState(row.chapter.description ?? '');

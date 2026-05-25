@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Compass, KeyRound, List, Map, MapPin, Search, ShieldCheck, Users } from 'lucide-react-native';
+import { ChevronRight, Compass, KeyRound, List, Map, MapPin, Search, ShieldCheck, Users } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +9,9 @@ import { PremiumChapterMap } from '@/components/community/PremiumChapterMap';
 import { radius, shadows, spacing } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/hooks/useTheme';
+import { getChapterCoordinateDiagnostics, logChapterCoordinateDiagnostics } from '@/lib/chapterCoordinates';
 import { demoDirectoryChapters } from '@/lib/demoData';
+import { canAccessAdmin } from '@/lib/permissions';
 import { supabase } from '@/lib/supabase';
 import { redeemInviteCodeAction } from '@/lib/supabase/protectedActions';
 import { DirectoryChapter } from '@/types/chapters';
@@ -27,7 +29,7 @@ const filters: { label: string; value: JoinFilter }[] = [
 
 export default function CommunityScreen() {
   const theme = useTheme();
-  const { isDemoMode } = useAuth();
+  const { isDemoMode, profile } = useAuth();
   const [chapters, setChapters] = useState<DirectoryChapter[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -91,6 +93,15 @@ export default function CommunityScreen() {
       return matchesQuery && matchesFilter;
     });
   }, [chapters, joinFilter, query]);
+  const coordinateDiagnostics = useMemo(
+    () => getChapterCoordinateDiagnostics(visibleChapters),
+    [visibleChapters],
+  );
+  const hasMapReadyChapters = coordinateDiagnostics.validMapReadyChapters > 0;
+
+  useEffect(() => {
+    logChapterCoordinateDiagnostics('community-tab', visibleChapters);
+  }, [visibleChapters]);
 
   useEffect(() => {
     if (visibleChapters.length === 0) {
@@ -159,6 +170,47 @@ export default function CommunityScreen() {
         ) : null}
       </View>
 
+      {canAccessAdmin(profile) ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/admin')}
+          style={({ pressed }) => [
+            {
+              alignItems: 'center',
+              backgroundColor: theme.glass,
+              borderColor: theme.accentBorder,
+              borderRadius: radius.xl,
+              borderWidth: 1,
+              flexDirection: 'row',
+              gap: spacing.md,
+              marginBottom: spacing.md,
+              marginHorizontal: spacing.lg,
+              opacity: pressed ? 0.85 : 1,
+              padding: spacing.md,
+            },
+            shadows.card,
+          ]}>
+          <View
+            style={{
+              alignItems: 'center',
+              backgroundColor: theme.accentSurface,
+              borderRadius: radius.md,
+              height: 44,
+              justifyContent: 'center',
+              width: 44,
+            }}>
+            <ShieldCheck color={theme.accent} size={22} strokeWidth={2.5} />
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ color: theme.textPrimary, fontSize: 17, fontWeight: '900' }}>Admin tools</Text>
+            <Text style={{ color: theme.textSecondary, fontSize: 14 }}>
+              Manage chapters, codes, roles, and stats.
+            </Text>
+          </View>
+          <ChevronRight color={theme.textMuted} size={20} strokeWidth={2.5} />
+        </Pressable>
+      ) : null}
+
       <View style={[styles.controlsCard, { backgroundColor: theme.glass, borderColor: theme.border }, shadows.card]}>
         <View style={[styles.searchRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Search color={theme.textMuted} size={19} strokeWidth={2.5} />
@@ -226,7 +278,7 @@ export default function CommunityScreen() {
           <LoadingState />
         ) : visibleChapters.length === 0 ? (
           <EmptyState query={query} />
-        ) : viewMode === 'map' ? (
+        ) : viewMode === 'map' && hasMapReadyChapters ? (
           <View style={[styles.mapCard, { borderColor: theme.accentBorder }, shadows.glow]}>
             <PremiumChapterMap
               chapters={visibleChapters}
@@ -235,6 +287,26 @@ export default function CommunityScreen() {
               selectedChapter={selectedChapter}
             />
           </View>
+        ) : viewMode === 'map' ? (
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
+            <View style={[styles.coordinateFallbackCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <Text style={[styles.coordinateFallbackTitle, { color: theme.textPrimary }]}>
+                No map-ready coordinates
+              </Text>
+              <Text style={[styles.coordinateFallbackText, { color: theme.textSecondary }]}>
+                Showing the chapter directory because none of the matching chapters have valid latitude and longitude.
+              </Text>
+            </View>
+            {visibleChapters.map((chapter) => (
+              <ChapterCard
+                chapter={chapter}
+                key={chapter.id}
+                onOpen={() => openChapter(chapter)}
+                onPreview={() => setSelectedChapter(chapter)}
+                selected={selectedChapter?.id === chapter.id}
+              />
+            ))}
+          </ScrollView>
         ) : (
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
             {visibleChapters.map((chapter) => (
@@ -619,6 +691,21 @@ const styles = StyleSheet.create({
   listContent: {
     gap: spacing.md,
     paddingBottom: 120,
+  },
+  coordinateFallbackCard: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    gap: spacing.xs,
+    padding: spacing.md,
+  },
+  coordinateFallbackTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  coordinateFallbackText: {
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 19,
   },
   loadingCard: {
     borderRadius: radius.xl,

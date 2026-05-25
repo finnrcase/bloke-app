@@ -9,6 +9,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { radius, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { getMapReadyChapters } from '@/lib/chapterCoordinates';
 import { DirectoryChapter } from '@/types/chapters';
 
 type ChapterMapProps = {
@@ -25,32 +26,15 @@ type ChapterWithPosition = DirectoryChapter & {
   top: number;
 };
 
-function getCoordinate(value: number | null) {
-  if (value === null) {
-    return null;
-  }
-
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? numberValue : null;
-}
-
 function getPositionedChapters(chapters: DirectoryChapter[]): ChapterWithPosition[] {
-  const chaptersWithCoordinates = chapters
-    .map((chapter) => ({
-      ...chapter,
-      latitude: getCoordinate(chapter.latitude),
-      longitude: getCoordinate(chapter.longitude),
-    }))
-    .filter((chapter): chapter is DirectoryChapter & { latitude: number; longitude: number } => {
-      return chapter.latitude !== null && chapter.longitude !== null;
-    });
+  const chaptersWithCoordinates = getMapReadyChapters(chapters);
 
   if (chaptersWithCoordinates.length === 0) {
     return [];
   }
 
-  const latitudes = chaptersWithCoordinates.map((chapter) => chapter.latitude);
-  const longitudes = chaptersWithCoordinates.map((chapter) => chapter.longitude);
+  const latitudes = chaptersWithCoordinates.map((item) => item.latitude);
+  const longitudes = chaptersWithCoordinates.map((item) => item.longitude);
   const minLatitude = Math.min(...latitudes);
   const maxLatitude = Math.max(...latitudes);
   const minLongitude = Math.min(...longitudes);
@@ -58,10 +42,12 @@ function getPositionedChapters(chapters: DirectoryChapter[]): ChapterWithPositio
   const latitudeRange = Math.max(maxLatitude - minLatitude, 0.1);
   const longitudeRange = Math.max(maxLongitude - minLongitude, 0.1);
 
-  return chaptersWithCoordinates.map((chapter) => ({
+  return chaptersWithCoordinates.map(({ chapter, latitude, longitude }) => ({
     ...chapter,
-    left: 10 + ((chapter.longitude - minLongitude) / longitudeRange) * 80,
-    top: 12 + (1 - (chapter.latitude - minLatitude) / latitudeRange) * 76,
+    latitude,
+    left: 10 + ((longitude - minLongitude) / longitudeRange) * 80,
+    longitude,
+    top: 12 + (1 - (latitude - minLatitude) / latitudeRange) * 76,
   }));
 }
 

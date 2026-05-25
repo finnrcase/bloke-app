@@ -59,3 +59,11 @@ export function assertAuthorized(allowed: boolean, message = 'You are not author
 export const isGlobalAdmin = isAdmin;
 export const canGenerateInviteCodes = canManageChapter;
 export const canApproveMembers = canReviewMembers;
+
+// Admin-hub capabilities. Admin-gated for now; kept as named exports so callers
+// express intent and future divergence is one-line.
+export const canAccessAdmin = isGlobalAdmin;
+export const canManageChapters = isGlobalAdmin;
+export const canGenerateChapterCodes = isGlobalAdmin;
+export const canManageRoles = isGlobalAdmin;
+export const canViewAdminStats = isGlobalAdmin;

@@ -18,18 +18,20 @@ type ProfileRow = Pick<
   'id' | 'full_name' | 'username' | 'role' | 'created_at'
 >;
 
-type RoleOption = 'user' | 'chapter_member' | 'chapter_leader' | 'global_admin';
+type RoleOption = 'user' | 'chapter_member' | 'chapter_leader' | 'global_admin' | 'corporate_bloke';
 
-const ROLE_OPTIONS: RoleOption[] = ['user', 'chapter_member', 'chapter_leader', 'global_admin'];
+const ROLE_OPTIONS: RoleOption[] = ['user', 'chapter_member', 'chapter_leader', 'global_admin', 'corporate_bloke'];
 
 const ROLE_LABEL: Record<RoleOption, string> = {
   user: 'User',
   chapter_member: 'Member',
   chapter_leader: 'Leader',
   global_admin: 'Admin',
+  corporate_bloke: 'Corporate Bloke',
 };
 
 function normalizeRole(role: string | null | undefined): RoleOption {
+  if (role === 'corporate_bloke') return 'corporate_bloke';
   if (role === 'global_admin' || role === 'admin') return 'global_admin';
   if (role === 'chapter_leader' || role === 'facilitator') return 'chapter_leader';
   if (role === 'chapter_member' || role === 'member') return 'chapter_member';

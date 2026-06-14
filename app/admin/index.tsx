@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { BarChart3, KeyRound, ShieldCheck, Users, MapPin } from 'lucide-react-native';
+import { BarChart3, Flag, KeyRound, ShieldCheck, Users, MapPin } from 'lucide-react-native';
 import { ComponentType } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -11,7 +11,7 @@ import { useTheme } from '@/hooks/useTheme';
 
 type AdminTile = {
   body: string;
-  href: '/admin/codes' | '/admin/chapters' | '/admin/roles' | '/admin/stats';
+  href: '/admin/codes' | '/admin/chapters' | '/admin/message-reports' | '/admin/roles' | '/admin/stats';
   icon: ComponentType<{ color?: string; size?: number; strokeWidth?: number }>;
   title: string;
 };
@@ -34,6 +34,12 @@ const TILES: AdminTile[] = [
     body: 'Search users, change roles, and assign chapter leaders.',
     href: '/admin/roles',
     icon: Users,
+  },
+  {
+    title: 'Message Reports',
+    body: 'Review chapter chat reports and moderation status.',
+    href: '/admin/message-reports',
+    icon: Flag,
   },
   {
     title: 'Stats',
@@ -60,7 +66,7 @@ export default function AdminHubScreen() {
             <Pressable
               accessibilityRole="button"
               key={tile.href}
-              onPress={() => router.push(tile.href)}
+              onPress={() => router.push(tile.href as never)}
               style={styles.tileWrap}>
               <GlassCard>
                 <View style={styles.tileHeader}>

@@ -253,7 +253,7 @@ export default function HomeScreen() {
 
           <MilestoneCard
             label="Next milestone"
-            progress={Math.min((currentWeek.week_number - 1 + completedParts / 3) / 10, 1)}
+            progress={Math.min((currentWeek.week_number - 1 + completedParts / 3) / 52, 1)}
             title={currentWeek.milestone_name ?? 'Keep going'}
           />
 
@@ -270,7 +270,7 @@ export default function HomeScreen() {
       {!isLoading && !errorMessage && !currentWeek ? (
         <AppCard>
           <Text style={[styles.title, { color: theme.textPrimary }]}>No curriculum yet.</Text>
-          <Text style={[styles.body, { color: theme.textSecondary }]}>Seed Weeks 1-10 to start the participant path.</Text>
+          <Text style={[styles.body, { color: theme.textSecondary }]}>Seed the 52-week program to start the participant path.</Text>
         </AppCard>
       ) : null}
     </AppScreen>

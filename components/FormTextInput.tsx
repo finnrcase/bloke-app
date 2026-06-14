@@ -1,6 +1,6 @@
 import { StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
 
-import { borderRadius, spacing } from '@/constants/theme';
+import { borderRadius, fonts, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 
 type FormTextInputProps = TextInputProps & {
@@ -36,14 +36,14 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   label: {
+    fontFamily: fonts.body.bold,
     fontSize: 16,
-    fontWeight: '800',
   },
   input: {
     borderRadius: borderRadius.md,
     borderWidth: 1,
+    fontFamily: fonts.body.medium,
     fontSize: 18,
-    fontWeight: '700',
     minHeight: 58,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,

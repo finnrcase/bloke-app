@@ -67,6 +67,9 @@ export const lightTheme = {
   progressTrack: 'rgba(98, 90, 80, 0.16)',
   subtleGlow: 'rgba(200, 155, 74, 0.16)',
   mapSurface: palette.surfaceDark,
+  tierBronze: '#A37B4D',
+  tierSilver: '#9C9890',
+  tierGold: '#C89B4A',
 } as const;
 
 export const darkTheme = {
@@ -103,6 +106,9 @@ export const darkTheme = {
   progressTrack: 'rgba(255, 249, 239, 0.14)',
   subtleGlow: 'rgba(209, 162, 79, 0.22)',
   mapSurface: '#11100E',
+  tierBronze: '#C89271',
+  tierSilver: '#C8C2B4',
+  tierGold: '#D1A24F',
 } as const;
 
 export const themes = {
@@ -148,6 +154,21 @@ export const borderRadius = {
 } as const;
 
 export const radius = borderRadius;
+
+export const fonts = {
+  display: {
+    medium: 'SpaceGrotesk_500Medium',
+    semibold: 'SpaceGrotesk_600SemiBold',
+    bold: 'SpaceGrotesk_700Bold',
+  },
+  body: {
+    regular: 'Manrope_400Regular',
+    medium: 'Manrope_500Medium',
+    semibold: 'Manrope_600SemiBold',
+    bold: 'Manrope_700Bold',
+    heavy: 'Manrope_800ExtraBold',
+  },
+} as const;
 
 export const typography = {
   eyebrow: 13,
@@ -211,10 +232,10 @@ export function createNavigationTheme(theme: AppTheme): Theme {
       notification: theme.accent,
     },
     fonts: {
-      regular: { fontFamily: 'System', fontWeight: '400' },
-      medium: { fontFamily: 'System', fontWeight: '600' },
-      bold: { fontFamily: 'System', fontWeight: '800' },
-      heavy: { fontFamily: 'System', fontWeight: '900' },
+      regular: { fontFamily: 'Manrope_400Regular', fontWeight: '400' },
+      medium: { fontFamily: 'Manrope_600SemiBold', fontWeight: '600' },
+      bold: { fontFamily: 'Manrope_700Bold', fontWeight: '800' },
+      heavy: { fontFamily: 'Manrope_800ExtraBold', fontWeight: '900' },
     },
   };
 }
@@ -230,9 +251,9 @@ export const navigationTheme: Theme = {
     notification: lightTheme.accent,
   },
   fonts: {
-    regular: { fontFamily: 'System', fontWeight: '400' },
-    medium: { fontFamily: 'System', fontWeight: '600' },
-    bold: { fontFamily: 'System', fontWeight: '800' },
-    heavy: { fontFamily: 'System', fontWeight: '900' },
+    regular: { fontFamily: 'Manrope_400Regular', fontWeight: '400' },
+    medium: { fontFamily: 'Manrope_600SemiBold', fontWeight: '600' },
+    bold: { fontFamily: 'Manrope_700Bold', fontWeight: '800' },
+    heavy: { fontFamily: 'Manrope_800ExtraBold', fontWeight: '900' },
   },
 };

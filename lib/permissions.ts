@@ -1,10 +1,11 @@
 import { Database } from '@/types/database';
 
-export type AppRole = 'user' | 'chapter_member' | 'chapter_leader' | 'global_admin';
+export type AppRole = 'user' | 'chapter_member' | 'chapter_leader' | 'global_admin' | 'corporate_bloke';
 export type Profile = Database['public']['Tables']['profiles']['Row'];
 export type ChapterMember = Database['public']['Tables']['chapter_members']['Row'];
 
 export function normalizeProfileRole(role?: Profile['role'] | null): AppRole {
+  if (role === 'corporate_bloke') return 'corporate_bloke';
   if (role === 'global_admin' || role === 'admin') return 'global_admin';
   if (role === 'chapter_leader' || role === 'facilitator') return 'chapter_leader';
   if (role === 'chapter_member') return 'chapter_member';
@@ -18,7 +19,12 @@ export function normalizeChapterRole(role?: ChapterMember['role'] | null): AppRo
 }
 
 export function isAdmin(profile?: Pick<Profile, 'role'> | null) {
-  return normalizeProfileRole(profile?.role) === 'global_admin';
+  const role = normalizeProfileRole(profile?.role);
+  return role === 'global_admin' || role === 'corporate_bloke';
+}
+
+export function isCorporateBloke(profile?: Pick<Profile, 'role'> | null) {
+  return normalizeProfileRole(profile?.role) === 'corporate_bloke';
 }
 
 export function isChapterLeader(memberships: ChapterMember[] = [], chapterId?: string | null) {

@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { ChevronRight, Compass, KeyRound, List, Map, MapPin, Search, ShieldCheck, Users } from 'lucide-react-native';
+import { ChevronRight, Compass, Globe2, KeyRound, List, Map, MapPin, MessageCircle, Search, ShieldCheck, Users } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -210,6 +210,84 @@ export default function CommunityScreen() {
           <ChevronRight color={theme.textMuted} size={20} strokeWidth={2.5} />
         </Pressable>
       ) : null}
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push('/messages' as never)}
+        style={({ pressed }) => [
+          {
+            alignItems: 'center',
+            backgroundColor: theme.glass,
+            borderColor: theme.border,
+            borderRadius: radius.xl,
+            borderWidth: 1,
+            flexDirection: 'row',
+            gap: spacing.md,
+            marginBottom: spacing.md,
+            marginHorizontal: spacing.lg,
+            opacity: pressed ? 0.85 : 1,
+            padding: spacing.md,
+          },
+          shadows.card,
+        ]}>
+        <View
+          style={{
+            alignItems: 'center',
+            backgroundColor: theme.accentSurface,
+            borderRadius: radius.md,
+            height: 44,
+            justifyContent: 'center',
+            width: 44,
+          }}>
+          <MessageCircle color={theme.accent} size={22} strokeWidth={2.5} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ color: theme.textPrimary, fontSize: 17, fontWeight: '900' }}>Chapter messages</Text>
+          <Text style={{ color: theme.textSecondary, fontSize: 14 }}>
+            Coordinate with members, events, announcements, and accountability partners.
+          </Text>
+        </View>
+        <ChevronRight color={theme.textMuted} size={20} strokeWidth={2.5} />
+      </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push('/feed')}
+        style={({ pressed }) => [
+          {
+            alignItems: 'center',
+            backgroundColor: theme.glass,
+            borderColor: theme.border,
+            borderRadius: radius.xl,
+            borderWidth: 1,
+            flexDirection: 'row',
+            gap: spacing.md,
+            marginBottom: spacing.md,
+            marginHorizontal: spacing.lg,
+            opacity: pressed ? 0.85 : 1,
+            padding: spacing.md,
+          },
+          shadows.card,
+        ]}>
+        <View
+          style={{
+            alignItems: 'center',
+            backgroundColor: theme.accentSurface,
+            borderRadius: radius.md,
+            height: 44,
+            justifyContent: 'center',
+            width: 44,
+          }}>
+          <Globe2 color={theme.accent} size={22} strokeWidth={2.5} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ color: theme.textPrimary, fontSize: 17, fontWeight: '900' }}>Community feed</Text>
+          <Text style={{ color: theme.textSecondary, fontSize: 14 }}>
+            Share wins, reflections, and accountability with logged-in Bloke members.
+          </Text>
+        </View>
+        <ChevronRight color={theme.textMuted} size={20} strokeWidth={2.5} />
+      </Pressable>
 
       <View style={[styles.controlsCard, { backgroundColor: theme.glass, borderColor: theme.border }, shadows.card]}>
         <View style={[styles.searchRow, { backgroundColor: theme.card, borderColor: theme.border }]}>

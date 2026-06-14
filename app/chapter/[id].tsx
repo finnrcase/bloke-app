@@ -5,7 +5,6 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock3,
-  Crown,
   KeyRound,
   MapPin,
   ShieldCheck,
@@ -15,6 +14,7 @@ import { ComponentType, useCallback, useEffect, useMemo, useRef, useState } from
 import { ActivityIndicator, Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { UserAvatar } from '@/components/ui/UserAvatar';
 import { radius, shadows, spacing } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/hooks/useTheme';
@@ -291,9 +291,11 @@ export default function ChapterDetailScreen() {
             <View style={[styles.card, { backgroundColor: theme.glass, borderColor: theme.border }, shadows.card]}>
               <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Chapter leader</Text>
               <View style={styles.leaderRow}>
-                <View style={[styles.avatar, { backgroundColor: theme.cardInverted, borderColor: theme.accentBorder }]}>
-                  <Crown color={theme.accent} size={22} strokeWidth={2.8} />
-                </View>
+                <UserAvatar
+                  imageUrl={leader?.avatar_url}
+                  name={leader?.full_name ?? leader?.username ?? 'Leader pending'}
+                  size={52}
+                />
                 <View style={styles.leaderCopy}>
                   <Text style={[styles.leaderName, { color: theme.textPrimary }]}>
                     {leader?.full_name ?? leader?.username ?? 'Leader pending'}
@@ -745,14 +747,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.md,
-  },
-  avatar: {
-    alignItems: 'center',
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    height: 54,
-    justifyContent: 'center',
-    width: 54,
   },
   leaderCopy: {
     flex: 1,

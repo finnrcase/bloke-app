@@ -1,7 +1,7 @@
 import { ComponentType } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { borderRadius, spacing } from '@/constants/theme';
+import { borderRadius, fonts, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 
 type IconComponent = ComponentType<{ color?: string; size?: number; strokeWidth?: number }>;
@@ -41,11 +41,12 @@ const styles = StyleSheet.create({
     width: 48,
   },
   title: {
+    fontFamily: fonts.display.bold,
     fontSize: 24,
-    fontWeight: '900',
     lineHeight: 30,
   },
   body: {
+    fontFamily: fonts.body.regular,
     fontSize: 18,
     lineHeight: 28,
   },

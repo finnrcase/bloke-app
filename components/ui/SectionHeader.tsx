@@ -1,7 +1,7 @@
 import { ComponentType } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { spacing, typography } from '@/constants/theme';
+import { fonts, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 
 type IconComponent = ComponentType<{ color?: string; size?: number; strokeWidth?: number }>;
@@ -44,16 +44,18 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   eyebrow: {
+    fontFamily: fonts.body.bold,
     fontSize: typography.eyebrow,
-    fontWeight: '900',
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
   title: {
+    fontFamily: fonts.display.bold,
     fontSize: typography.title,
-    fontWeight: '900',
     lineHeight: 34,
   },
   subtitle: {
+    fontFamily: fonts.body.medium,
     fontSize: typography.body,
     lineHeight: 27,
   },

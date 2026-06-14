@@ -31,6 +31,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { GradientCard } from '@/components/ui/GradientCard';
 import { HeroSection } from '@/components/ui/HeroSection';
 import { SectionHeader } from '@/components/ui/SectionHeader';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 import { radius, spacing, typography } from '@/constants/theme';
 import { useAdminState } from '@/context/AdminContext';
 import { useAuth } from '@/context/AuthContext';
@@ -878,8 +879,11 @@ function MemberRow({
   return (
     <View style={[styles.memberRow, { backgroundColor: theme.card, borderColor: theme.border }, isWide ? styles.memberRowWide : null]}>
       <View style={styles.memberMain}>
-        <Text style={[styles.memberName, { color: theme.textPrimary }]}>{member.profile.full_name ?? 'Unnamed member'}</Text>
-        <Text style={[styles.memberMeta, { color: theme.textSecondary }]}>Week {member.currentWeek}</Text>
+        <UserAvatar imageUrl={member.profile.avatar_url} name={member.profile.full_name ?? member.profile.username} size={42} />
+        <View style={styles.memberCopy}>
+          <Text style={[styles.memberName, { color: theme.textPrimary }]}>{member.profile.full_name ?? 'Unnamed member'}</Text>
+          <Text style={[styles.memberMeta, { color: theme.textSecondary }]}>Week {member.currentWeek}</Text>
+        </View>
       </View>
       <View style={styles.memberStats}>
         <Text style={[styles.statLabel, { color: theme.textMuted }]}>Last submitted</Text>
@@ -929,16 +933,23 @@ function JoinRequestCard({
 
   return (
     <View style={[styles.requestCard, { backgroundColor: theme.cardMuted, borderColor: theme.border }]}>
-      <View style={styles.requestCopy}>
-        <Text style={[styles.memberName, { color: theme.textPrimary }]}>
-          {row.profile?.full_name ?? `Profile ${row.request.profile_id.slice(0, 8)}`}
-        </Text>
-        <Text style={[styles.memberMeta, { color: theme.textSecondary }]}>
-          {row.request.message ?? 'No message included.'}
-        </Text>
-        <Text style={[styles.statLabel, { color: theme.textMuted }]}>
-          Requested {formatDate(row.request.created_at)}
-        </Text>
+      <View style={styles.requestProfileCopy}>
+        <UserAvatar
+          imageUrl={row.profile?.avatar_url}
+          name={row.profile?.full_name ?? row.profile?.username ?? `Profile ${row.request.profile_id.slice(0, 8)}`}
+          size={42}
+        />
+        <View style={styles.memberCopy}>
+          <Text style={[styles.memberName, { color: theme.textPrimary }]}>
+            {row.profile?.full_name ?? `Profile ${row.request.profile_id.slice(0, 8)}`}
+          </Text>
+          <Text style={[styles.memberMeta, { color: theme.textSecondary }]}>
+            {row.request.message ?? 'No message included.'}
+          </Text>
+          <Text style={[styles.statLabel, { color: theme.textMuted }]}>
+            Requested {formatDate(row.request.created_at)}
+          </Text>
+        </View>
       </View>
       <View style={styles.requestActions}>
         <View style={styles.requestAction}>
@@ -1153,8 +1164,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   memberMain: {
+    alignItems: 'center',
     flex: 2,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    minWidth: 220,
+  },
+  memberCopy: {
+    flex: 1,
     gap: spacing.xs,
+    minWidth: 0,
   },
   memberName: {
     fontSize: 20,
@@ -1262,6 +1281,11 @@ const styles = StyleSheet.create({
   },
   requestCopy: {
     gap: spacing.xs,
+  },
+  requestProfileCopy: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
   },
   requestActions: {
     flexDirection: 'row',

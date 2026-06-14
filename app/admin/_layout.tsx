@@ -28,6 +28,7 @@ export default function AdminLayout() {
       <Stack.Screen name="index" options={{ title: 'Admin' }} />
       <Stack.Screen name="chapters" options={{ title: 'Chapters' }} />
       <Stack.Screen name="codes" options={{ title: 'Invite Codes' }} />
+      <Stack.Screen name="message-reports" options={{ title: 'Message Reports' }} />
       <Stack.Screen name="roles" options={{ title: 'Roles' }} />
       <Stack.Screen name="stats" options={{ title: 'Stats' }} />
     </Stack>

@@ -2,7 +2,7 @@ import { Href, Link } from 'expo-router';
 import { ComponentType, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { borderRadius, shadows, spacing } from '@/constants/theme';
+import { borderRadius, fonts, shadows, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 
 type IconComponent = ComponentType<{ color?: string; size?: number; strokeWidth?: number }>;
@@ -168,8 +168,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(200, 155, 74, 0.12)',
   },
   label: {
+    fontFamily: fonts.body.bold,
     fontSize: 17,
-    fontWeight: '900',
     lineHeight: 22,
     textAlign: 'center',
   },

@@ -16,8 +16,8 @@ const milestones: Milestone[] = [
   { badgeCode: 'milestone_reliable', displayName: 'Reliable', weekNumber: 10 },
   { badgeCode: 'milestone_grounded', displayName: 'Grounded', weekNumber: 25 },
   { badgeCode: 'milestone_capable', displayName: 'Capable', weekNumber: 50 },
-  { badgeCode: 'milestone_leader', displayName: 'Leader', weekNumber: 75 },
-  { badgeCode: 'completion_builder', displayName: 'Builder / Completion', weekNumber: 100 },
+  { badgeCode: 'milestone_leader', displayName: 'Leader', weekNumber: 51 },
+  { badgeCode: 'completion_builder', displayName: 'Builder / Completion', weekNumber: 52 },
 ];
 
 function isCompleteWeek(progress: {

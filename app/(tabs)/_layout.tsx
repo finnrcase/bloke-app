@@ -1,4 +1,4 @@
-import { BookOpen, Home, MessageSquare, User, TrendingUp } from 'lucide-react-native';
+import { BookOpen, FileText, Home, MessageSquare, Newspaper, User, TrendingUp } from 'lucide-react-native';
 import { Tabs } from 'expo-router';
 
 import { RouteGuard } from '@/components/RouteGuard';
@@ -46,10 +46,24 @@ export default function TabsLayout() {
           }}
         />
         <Tabs.Screen
+          name="feed"
+          options={{
+            title: t('feed'),
+            tabBarIcon: ({ color, size }) => <Newspaper color={color} size={size} />,
+          }}
+        />
+        <Tabs.Screen
           name="progress"
           options={{
             title: t('progress'),
             tabBarIcon: ({ color, size }) => <TrendingUp color={color} size={size} />,
+          }}
+        />
+        <Tabs.Screen
+          name="journal"
+          options={{
+            title: t('journal'),
+            tabBarIcon: ({ color, size }) => <FileText color={color} size={size} />,
           }}
         />
         <Tabs.Screen

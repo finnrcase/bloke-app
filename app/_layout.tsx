@@ -1,3 +1,15 @@
+import {
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+  Manrope_800ExtraBold,
+} from '@expo-google-fonts/manrope';
+import {
+  SpaceGrotesk_500Medium,
+  SpaceGrotesk_600SemiBold,
+  SpaceGrotesk_700Bold,
+} from '@expo-google-fonts/space-grotesk';
 import { ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
@@ -24,6 +36,14 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    SpaceGrotesk_500Medium,
+    SpaceGrotesk_600SemiBold,
+    SpaceGrotesk_700Bold,
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    Manrope_800ExtraBold,
   });
 
   useEffect(() => {
@@ -77,6 +97,7 @@ function RootStack() {
         <Stack.Screen name="check-in" options={{ headerShown: false }} />
         <Stack.Screen name="chapter/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="chapters" options={{ title: 'Chapter Directory' }} />
+        <Stack.Screen name="messages" options={{ headerShown: false }} />
         <Stack.Screen name="onboarding" options={{ title: 'Onboarding' }} />
         <Stack.Screen name="facilitator" options={{ title: 'Facilitator' }} />
         <Stack.Screen name="privacy" options={{ title: 'Privacy Policy' }} />
